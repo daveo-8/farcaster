@@ -3,10 +3,10 @@
 import { useCallback, useState } from 'react';
 import { useMiniApp } from '@neynar/react';
 import { ShareButton } from '../Share';
-import { Button } from '../Button';
 import { SignIn } from '../wallet/SignIn';
 import { type Haptics } from '@farcaster/miniapp-sdk';
 import { APP_URL } from '~/lib/constants';
+import {Button} from "~/components/ui/button";
 
 /**
  * ActionsTab component handles mini app actions like sharing, notifications, and haptic feedback.

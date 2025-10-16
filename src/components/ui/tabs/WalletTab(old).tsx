@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import { useAccount, useSendTransaction, useSignTypedData, useWaitForTransactionReceipt, useDisconnect, useConnect, useSwitchChain, useChainId, type Connector } from "wagmi";
 import { useWallet as useSolanaWallet } from '@solana/wallet-adapter-react';
 import { base, degen, mainnet, optimism, unichain } from "wagmi/chains";
-import { Button } from "../Button";
 import { truncateAddress } from "../../../lib/truncateAddress";
 import { renderError } from "../../../lib/errorUtils";
 import { SignEvmMessage } from "../wallet/SignEvmMessage";
@@ -13,6 +12,7 @@ import { SignSolanaMessage } from "../wallet/SignSolanaMessage";
 import { SendSolana } from "../wallet/SendSolana";
 import { USE_WALLET, APP_NAME } from "../../../lib/constants";
 import { useMiniApp } from "@neynar/react";
+import {Button} from "~/components/ui/button";
 
 /**
  * WalletTab component manages wallet-related UI for both EVM and Solana chains.
@@ -298,7 +298,7 @@ export function WalletTab() {
           <Button
             onClick={sendEvmContractTransaction}
             disabled={!isConnected || isEvmTransactionPending}
-            isLoading={isEvmTransactionPending}
+            // isLoading={isEvmTransactionPending}
             className="w-full"
           >
             Send Transaction (contract)
@@ -320,7 +320,7 @@ export function WalletTab() {
           <Button
             onClick={signTyped}
             disabled={!isConnected || isEvmSignTypedDataPending}
-            isLoading={isEvmSignTypedDataPending}
+            // isLoading={isEvmSignTypedDataPending}
             className="w-full"
           >
             Sign Typed Data
@@ -329,7 +329,7 @@ export function WalletTab() {
           <Button
             onClick={handleSwitchChain}
             disabled={isChainSwitchPending}
-            isLoading={isChainSwitchPending}
+            // isLoading={isChainSwitchPending}
             className="w-full"
           >
             Switch to {nextChain.name}
