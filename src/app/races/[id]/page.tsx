@@ -102,7 +102,7 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
                 </div>
             </header>
 
-            <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
+            <main className="max-w-lg mx-auto px-8 py-6 space-y-6">
                 <Card className="p-4">
                     <div className="space-y-3">
                         <div className="flex items-center justify-between">

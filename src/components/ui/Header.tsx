@@ -21,7 +21,7 @@ export function Header({ neynarUser }: HeaderProps) {
 
   return (
       <header className="border-b border-border bg-card">
-          <div className="max-w-lg mx-auto px-4 py-4">
+          <div className="max-w-lg mx-auto px-8 py-4">
               <div className="flex items-center justify-between">
                   <div>
                       <h1 className="text-2xl font-bold text-balance">Farbets</h1>

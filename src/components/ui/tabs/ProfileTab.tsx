@@ -46,7 +46,7 @@ export function ProfileTab() {
 
     return (
         <div className="min-h-screen pb-20">
-            <header className="border-b border-border bg-card">
+            <header className="border-b border-border bg-card rounded-lg">
                 <div className="max-w-lg mx-auto px-4 py-6">
                     <div className="flex items-center gap-4">
                         <Avatar className="h-20 w-20 border-2 border-primary">
@@ -64,7 +64,7 @@ export function ProfileTab() {
                 </div>
             </header>
 
-            <main className="max-w-lg mx-auto px-4 py-6 space-y-6">
+            <main className="max-w-lg mx-auto py-6 space-y-6">
                 <section>
                     <h2 className="text-xl font-bold mb-4">Wallet</h2>
                     <Card className="p-6 bg-gradient-to-br from-primary/20 to-secondary">
