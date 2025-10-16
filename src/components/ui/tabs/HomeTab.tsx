@@ -1,6 +1,6 @@
 "use client";
 
-import {Clock, TrendingUp, Trophy} from "lucide-react";
+import {Clock, TrendingUp} from "lucide-react";
 import Link from "next/link";
 import {Button} from "~/components/ui/button";
 import {useWallet} from "~/lib/wallet-context";

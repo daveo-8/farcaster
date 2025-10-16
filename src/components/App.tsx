@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useMiniApp } from "@neynar/react";
 import { Header } from "~/components/ui/Header";
 import { Footer } from "~/components/ui/Footer";
-import {HomeTab, RacesTab, ContextTab, ProfileTab} from "~/components/ui/tabs";
+import {HomeTab, RacesTab, ProfileTab} from "~/components/ui/tabs";
 import { USE_WALLET } from "~/lib/constants";
 import { useNeynarUser } from "~/hooks/useNeynarUser";
 
