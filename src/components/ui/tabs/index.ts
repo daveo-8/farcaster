@@ -1,4 +1,4 @@
 export { HomeTab } from './HomeTab';
-export { ActionsTab } from './ActionsTab';
+export { RacesTab } from './RacesTab';
 export { ContextTab } from './ContextTab';
-export { WalletTab } from './WalletTab'; 
+export { ProfileTab } from './ProfileTab';
