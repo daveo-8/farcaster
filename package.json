@@ -80,6 +80,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vercel/sdk": "^1.9.0",
+    "c8": "^10.1.3",
     "crypto": "^1.0.1",
     "esbuild": "^0.25.10",
     "eslint": "^8",
@@ -92,7 +93,8 @@
     "ts-node": "^10.9.2",
     "tsx": "^4.20.5",
     "typescript": "^5",
-    "vite": "^7.1.9"
+    "vite": "^7.1.9",
+    "vitest": "^3.2.4"
   },
   "resolutions": {
     "backslash": "0.2.0",

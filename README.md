@@ -10,7 +10,7 @@ Develop tools and application testing for UNLV capstone
 2. Install the farcaster stuff:
 
     ```npm install @farcaster/miniapp-wagmi-connector```
-    
+
     ```npm install @farcaster/frame-sdk```
 
 
@@ -24,7 +24,6 @@ Develop tools and application testing for UNLV capstone
 4. Run npm install:
 
     ```npm install```
-
 
 5. Run the dev server:
 
@@ -75,3 +74,14 @@ The ui directory holds the header and footer to edit the menu
 
 The files labled ***(old)
 are the original files provided by farcaster, look in their for ideas on how to do things
+
+---------------------------------------------------------------------
+
+## Testing ##
+Vitest and c8 for testing frontend JS and TS.
+
+### Test Command ###
+Run the test with command `make test`
+
+### Test File Locations ###
+JS/TS located in `tests/`
