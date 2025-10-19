@@ -82,6 +82,7 @@ Vitest and c8 for testing frontend JS and TS.
 
 ### Test Command ###
 Run the test with command `make test`
+If there is an error, try manually installing vitest and c8 again with `npm install --save-dev vitest c8`
 
 ### Test File Locations ###
 JS/TS located in `tests/`
