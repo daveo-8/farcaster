@@ -1,0 +1,179 @@
+[
+  {
+    "id": "1",
+    "name": "A",
+    "time": "2026-10-13T18:00:00Z",
+    "choices": ["Alpha", "Bravo", "Charlie", "Delta", "Echo"],
+    "stats": { "owner": "Alice", "wins": 12, "losses": 3, "notes": "Top seed" },
+        "location": "Louisville, KY",
+    "distance": "1.5 miles",
+    "track": "Dirt",
+    "prize": "50,000",
+    "horses": [ 
+    { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    ]
+  },
+  {
+    "id": "2",
+    "name": "B",
+    "time": "2026-10-13T18:15:00Z",
+        "choices": ["Alpha", "Bravo", "Charlie", "Delta", "Echo"],
+    "stats": { "owner": "Bob", "wins": 7, "losses": 5, "notes": "Wildcard" },
+        "location": "Louisville, KY",
+    "distance": "1.5 miles",
+    "track": "Dirt",
+    "prize": "50,000",
+    "horses": [ 
+    { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
+    { "id": "7", "name": "Mountain King", "jockey": "S. Wilson", "odds": "9.5", "color": "bg-red-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    ]
+  },
+  {
+    "id": "3",
+    "name": "C",
+    "time": "2026-10-13T18:15:00Z",
+        "choices": ["Alpha", "Bravo", "Charlie", "Delta", "Echo"],
+    "stats": { "owner": "Bob", "wins": 7, "losses": 5, "notes": "Wildcard" },
+        "location": "Louisville, KY",
+    "distance": "1.5 miles",
+    "track": "Dirt",
+    "prize": "50,000",
+    "horses": [ 
+    { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    ]
+  },
+  {
+    "id": "4",
+    "name": "D",
+    "time": "2026-10-13T18:15:00Z",
+        "choices": ["Alpha", "Bravo", "Charlie", "Delta", "Echo"],
+    "stats": { "owner": "Bob", "wins": 7, "losses": 5, "notes": "Wildcard" },
+        "location": "Louisville, KY",
+    "distance": "1.5 miles",
+    "track": "Dirt",
+    "prize": "50,000",
+    "horses": [ 
+    { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    ]
+  },
+  {
+    "id": "5",
+    "name": "E",
+    "time": "2026-10-13T18:15:00Z",
+        "choices": ["Alpha", "Bravo", "Charlie", "Delta", "Echo"],
+    "stats": { "owner": "Bob", "wins": 7, "losses": 5, "notes": "Wildcard" },
+        "location": "Louisville, KY",
+    "distance": "1.5 miles",
+    "track": "Dirt",
+    "prize": "50,000",
+    "horses": [ 
+    { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    ]
+  },
+  {
+    "id": "6",
+    "name": "F",
+    "time": "2026-10-13T18:15:00Z",
+        "choices": ["Alpha", "Bravo", "Charlie", "Delta", "Echo"],
+    "stats": { "owner": "Bob", "wins": 7, "losses": 5, "notes": "Wildcard" },
+        "location": "Louisville, KY",
+    "distance": "1.5 miles",
+    "track": "Dirt",
+    "prize": "50,000",
+    "horses": [ 
+    { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    ]
+  },
+  {
+    "id": "7",
+    "name": "G",
+    "time": "2026-10-13T18:15:00Z",
+        "choices": ["Alpha", "Bravo", "Charlie", "Delta", "Echo"],
+    "stats": { "owner": "Bob", "wins": 7, "losses": 5, "notes": "Wildcard" },
+        "location": "Louisville, KY",
+    "distance": "1.5 miles",
+    "track": "Dirt",
+    "prize": "50,000",
+    "horses": [ 
+    { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    ]
+  },
+  {
+    "id": "8",
+    "name": "H",
+    "time": "2026-10-13T18:15:00Z",
+        "choices": ["Alpha", "Bravo", "Charlie", "Delta", "Echo"],
+    "stats": { "owner": "Bob", "wins": 7, "losses": 5, "notes": "Wildcard" },
+        "location": "Louisville, KY",
+    "distance": "1.5 miles",
+    "track": "Dirt",
+    "prize": "50,000",
+    "horses": [ 
+    { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    ]
+  },
+  {
+    "id": "9",
+    "name": "I",
+    "time": "2026-10-13T18:15:00Z",
+"choices": ["Alpha", "Bravo", "Charlie", "Delta", "Echo"],
+    "stats": { "owner": "Bob", "wins": 7, "losses": 5, "notes": "Wildcard" },
+        "location": "Louisville, KY",
+    "distance": "1.5 miles",
+    "track": "Dirt",
+    "prize": "50,000",
+    "horses": [ 
+    { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    ]
+  }
+]
