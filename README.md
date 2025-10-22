@@ -25,7 +25,14 @@ Develop tools and application testing for UNLV capstone
 
     ```npm install```
 
-5. Run the dev server:
+5. Setup python venv
+    ```python -m venv venv``` or ```python3 -m venv venv```
+
+6. Install python requirements.txt
+    - ```source venv/bin/activate```
+    - ```pip install -r requirements.txt```
+
+7. Run the dev server:
 
     ```npm run dev```
 
@@ -78,11 +85,13 @@ are the original files provided by farcaster, look in their for ideas on how to 
 ---------------------------------------------------------------------
 
 ## Testing ##
-Vitest and c8 for testing frontend JS and TS.
+Vitest and c8 for testing frontend JS and TS. Pytest and pytest-cov for testing backend python.
 
 ### Test Command ###
-Run the test with command `make test`
-If there is an error, try manually installing vitest and c8 again with `npm install --save-dev vitest c8`
+JS/TS Frontend Testing: `make frontend-test`
+Python Backend Testing: `make backend-test`
+
+If there is an error for frontend, try manually installing vitest and c8 again with `npm install --save-dev vitest c8`
 
 ### Test File Locations ###
-JS/TS located in `tests/`
+Javascript, typescript, and python test files are located in `tests/`. This is where to write new tests.
