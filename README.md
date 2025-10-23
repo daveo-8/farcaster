@@ -10,7 +10,7 @@ Develop tools and application testing for UNLV capstone
 2. Install the farcaster stuff:
 
     ```npm install @farcaster/miniapp-wagmi-connector```
-    
+
     ```npm install @farcaster/frame-sdk```
 
 
@@ -25,8 +25,14 @@ Develop tools and application testing for UNLV capstone
 
     ```npm install```
 
+5. Setup python venv
+    ```python -m venv venv``` or ```python3 -m venv venv```
 
-5. Run the dev server:
+6. Install python requirements.txt
+    - ```source venv/bin/activate```
+    - ```pip install -r requirements.txt```
+
+7. Run the dev server:
 
     ```npm run dev```
 
@@ -75,3 +81,17 @@ The ui directory holds the header and footer to edit the menu
 
 The files labled ***(old)
 are the original files provided by farcaster, look in their for ideas on how to do things
+
+---------------------------------------------------------------------
+
+## Testing ##
+Vitest and c8 for testing frontend JS and TS. Pytest and pytest-cov for testing backend python.
+
+### Test Command ###
+JS/TS Frontend Testing: `make frontend-test`
+Python Backend Testing: `make backend-test`
+
+If there is an error for frontend, try manually installing vitest and c8 again with `npm install --save-dev vitest c8`
+
+### Test File Locations ###
+Javascript, typescript, and python test files are located in `tests/`. This is where to write new tests.
