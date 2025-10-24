@@ -1,0 +1,61 @@
+name: Run Tests and Coverage
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Run Frontend and Backend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Cache Node.js Modules
+        id: cache-npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('farcaster/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install frontend dependencies
+        if: steps.cache-npm.outputs.cache-hit != 'true'
+        run: |
+          cd farcaster
+          npm ci
+
+      - name: Run frontend tests
+        run: |
+          cd farcaster
+          make test-frontend
+
+      - name: Cache Python Dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('farcaster/requirements.txt') }}
+
+      - name: Install backend dependencies
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          cd farcaster
+          pip install -r requirements.txt
+
+      - name: Run backend tests
+        run: |
+          cd farcaster
+          make test-backend
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-reports
+          path: |
+            farcaster/frontend-coverage
+            farcaster/backend-coverage

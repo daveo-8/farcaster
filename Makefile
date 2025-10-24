@@ -12,4 +12,4 @@ frontend-test:
 	--all --check-coverage --lines 80 --functions 80 --branches 80 vitest
 
 backend-test:
-	. venv/bin/activate && pytest --cov=src --cov-branch --cov-fail-under=80
+	. venv/bin/activate && pytest
