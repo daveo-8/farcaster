@@ -11,12 +11,12 @@
     "prize": "50,000",
     "horses": [ 
     { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
-    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
-    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
-    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
-    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
-    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
-    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-blue-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-green-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-yellow-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-purple-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-cyan-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-orange-500" }
     ]
   },
   {
@@ -31,13 +31,13 @@
     "prize": "50,000",
     "horses": [ 
     { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
-    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
-    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
-    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
-    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
-    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
-    { "id": "7", "name": "Mountain King", "jockey": "S. Wilson", "odds": "9.5", "color": "bg-red-500" },
-    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-blue-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-green-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-yellow-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-purple-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-cyan-500" },
+    { "id": "7", "name": "Mountain King", "jockey": "S. Wilson", "odds": "9.5", "color": "bg-orange-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-pink-500" }
     ]
   },
   {
@@ -52,8 +52,8 @@
     "prize": "50,000",
     "horses": [ 
     { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
-    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
-    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-blue-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-green-500" }
     ]
   },
   {
@@ -68,12 +68,12 @@
     "prize": "50,000",
     "horses": [ 
     { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
-    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
-    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
-    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
-    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
-    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
-    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-blue-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-green-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-yellow-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-purple-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-cyan-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-orange-500" }
     ]
   },
   {
@@ -88,12 +88,12 @@
     "prize": "50,000",
     "horses": [ 
     { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
-    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
-    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
-    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
-    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
-    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
-    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-blue-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-green-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-yellow-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-purple-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-cyan-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-orange-500" }
     ]
   },
   {
@@ -108,12 +108,12 @@
     "prize": "50,000",
     "horses": [ 
     { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
-    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
-    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
-    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
-    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
-    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
-    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-blue-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-green-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-yellow-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-purple-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-cyan-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-orange-500" }
     ]
   },
   {
@@ -128,12 +128,12 @@
     "prize": "50,000",
     "horses": [ 
     { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
-    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
-    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
-    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
-    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
-    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
-    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-blue-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-green-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-yellow-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-purple-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-cyan-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-orange-500" }
     ]
   },
   {
@@ -148,12 +148,12 @@
     "prize": "50,000",
     "horses": [ 
     { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
-    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
-    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
-    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
-    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
-    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
-    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-blue-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-green-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-yellow-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-purple-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-cyan-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-orange-500" }
     ]
   },
   {
@@ -168,12 +168,12 @@
     "prize": "50,000",
     "horses": [ 
     { "id": "1", "name": "Thunder Strike", "jockey": "M. Smith", "odds": "3.5", "color": "bg-red-500" },
-    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-red-500" },
-    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-red-500" },
-    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-red-500" },
-    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-red-500" },
-    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-red-500" },
-    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-red-500" }
+    { "id": "2", "name": "Lightning Bolt", "jockey": "J. Johnson", "odds": "4.2", "color": "bg-blue-500" },
+    { "id": "3", "name": "Storm Chaser", "jockey": "R. Williams", "odds": "5.8", "color": "bg-green-500" },
+    { "id": "4", "name": "Wind Runner", "jockey": "K. Brown", "odds": "6.5", "color": "bg-yellow-500" },
+    { "id": "5", "name": "Fire Dancer", "jockey": "L. Davis", "odds": "7.2", "color": "bg-purple-500" },
+    { "id": "6", "name": "Ocean Wave", "jockey": "T. Miller", "odds": "8.0", "color": "bg-cyan-500" },
+    { "id": "8", "name": "Desert Fox", "jockey": "A. Moore", "odds": "12.0", "color": "bg-orange-500" }
     ]
   }
 ]
