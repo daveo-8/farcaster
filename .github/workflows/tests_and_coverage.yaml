@@ -25,12 +25,10 @@ jobs:
       - name: Install frontend dependencies
         if: steps.cache-npm.outputs.cache-hit != 'true'
         run: |
-          cd farcaster
           npm install
 
       - name: Run frontend tests
         run: |
-          cd farcaster
           make test-frontend
 
       - name: Cache Python Dependencies
@@ -43,12 +41,10 @@ jobs:
       - name: Install backend dependencies
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
-          cd farcaster
           pip install -r requirements.txt
 
       - name: Run backend tests
         run: |
-          cd farcaster
           make test-backend
 
       - name: Ensure coverage directories exist
