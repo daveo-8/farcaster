@@ -6,9 +6,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest  # Use the latest Ubuntu runner
-    defaults:
-      run:
-        working-directory: farcaster  # Set the default working directory for all steps
 
     steps:
       - uses: actions/checkout@v4
