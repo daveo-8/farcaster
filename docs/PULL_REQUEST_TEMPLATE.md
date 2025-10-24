@@ -1,6 +1,7 @@
 # Pull Request Template
 
 > **Note 1:** Not everything in this template must be filled out exactly. It’s here to help make pull requests easy to read and give guidance to anyone who needs it.
+
 > **Note 2:** Members should aim to create “draft” PR to show work in progress. 
 
 ---
