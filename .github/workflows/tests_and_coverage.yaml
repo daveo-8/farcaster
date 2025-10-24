@@ -51,11 +51,14 @@ jobs:
           cd farcaster
           make test-backend
 
+      - name: Ensure coverage directories exist
+        run: |
+          mkdir -p farcaster/coverage-reports
+
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-reports
           path: |
-            farcaster/frontend-coverage
-            farcaster/backend-coverage
+            farcaster/coverage-reports
