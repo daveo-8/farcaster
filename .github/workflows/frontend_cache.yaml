@@ -21,4 +21,4 @@ jobs:
 
       - name: Install Dependencies on Cache Miss
         if: steps.cache-npm.outputs.cache-hit != 'true'
-        run: npm ci
+        run: npm install
