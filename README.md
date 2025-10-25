@@ -23,7 +23,7 @@ Develop tools and application testing for UNLV capstone
 
 4. Run npm install:
 
-    ```npm install```
+    ```npm install --include=dev```
 
 5. Setup python venv
     ```python -m venv venv``` or ```python3 -m venv venv```
