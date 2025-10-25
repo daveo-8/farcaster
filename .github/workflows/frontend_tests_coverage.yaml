@@ -1,4 +1,4 @@
-name: Run Frontend Tests
+name: Run Frontend Tests and Coverage
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   test:
-    name: Run Frontend Tests
+    name: Run Frontend Tests and Coverage
     runs-on: ubuntu-latest
 
     steps:
@@ -25,7 +25,7 @@ jobs:
       - name: Install frontend dependencies
         if: steps.cache-npm.outputs.cache-hit != 'true'
         run: |
-          npm install
+          npm install --include=dev
 
       - name: Run frontend tests
         run: |

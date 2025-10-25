@@ -1,4 +1,4 @@
-name: Run Tests and Coverage
+name: Run Backend Tests and Coverage
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   test:
-    name: Run Frontend and Backend Tests
+    name: Run Backend Tests and Coverage
     runs-on: ubuntu-latest
 
     steps:
