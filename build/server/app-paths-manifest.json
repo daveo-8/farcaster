@@ -1,0 +1,7 @@
+{
+  "/api/users/route": "app/api/users/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/.well-known/farcaster.json/route": "app/.well-known/farcaster.json/route.js",
+  "/page": "app/page.js",
+  "/races/[id]/page": "app/races/[id]/page.js"
+}
