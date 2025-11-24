@@ -251,6 +251,102 @@ app.get("/races", async (c) => {
   }
 });
 
+// helper to validate a lowercase hex address
+const normalizeAddress = (address: string) => {
+    if (!address) return null;
+    const lower = address.toLowerCase();
+    return /^0x[0-9a-f]{40}$/.test(lower) ? lower : null;
+};
+
+// for recent betting activity
+app.get("/activity/recent", async (c) => {
+    const limitParam = Number(c.req.query("limit") ?? "50");
+    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1)) : 50;
+
+    try {
+        const query = `
+            SELECT
+                b.id,
+                b.bettor,
+                b.share_id,
+                b.race_index,
+                b.horse,
+                b.amount,
+                b.timestamp,
+                b.block_number,
+                b.transaction_hash,
+                r.winner,
+                CASE
+                    WHEN r.winner IS NULL THEN 'pending'
+                    WHEN b.horse = r.winner THEN 'won'
+                    ELSE 'lost'
+                END as outcome
+            FROM bet b
+            LEFT JOIN race r ON b.race_index = r.race_index
+            ORDER BY b.block_number DESC
+            LIMIT ${limit}
+        `;
+
+        const result = await db.execute(query);
+        return c.json({
+            count: result.rows.length,
+            limit,
+            bets: result.rows,
+        });
+    } catch (error: any) {
+        return c.json({ error: error.message }, 500);
+    }
+});
+
+// leaderboard stuff
+app.get("leaderboard", async (c) => {
+    const limitParam = Number(c.req.query("limit") ?? "20");
+    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100) : 20;
+
+    const addressFilter = normalizeAddress(c.req.query("address") ?? "");
+
+    try {
+        const whereClause = addressFilter ? `WHERE LOWER(bettor) = '${addressFilter}'` : "";
+
+        const query = `
+            SELECT
+                LOWER(b.bettor) as bettor,
+                COUNT(*)::INTEGER as total_bets,
+                SUM(b.amount)::NUMERIC as total_staked,
+                SUM(CASE WHEN r.winner IS NOT NULL THEN 1 ELSE 0 END)::INTEGER as settled_bets,
+                SUM(CASE WHEN r.winner = b.horse THEN 1 ELSE 0 END)::INTEGER as wins,
+                SUM(CASE WHEN r.winner = b.horse THEN b.amount ELSE 0 END) as winning_stake
+            FROM bet b
+            LEFT JOIN race r ON b.race_index = r.race_index
+            ${whereClause}
+            GROUP BY LOWER(b.bettor)
+            ORDER BY total_staked DESC
+            LIMIT ${limit}
+        `;
+
+        const result = await db.execute(query);
+        const leaderboard = result.rows.map((row: any) => {
+            const settled = Number(row.settled_bets || 0);
+            const wins = Number(row.wins || 0);
+            const winRate = settled > 0 ? Number((wins / settled) * 100).toFixed(2) : 0;
+
+            return {
+                ...row,
+                win_rate: winRate,
+            };
+        });
+
+        return c.json({
+            count: leaderboard.length,
+            limit,
+            addressFilter,
+            leaderboard,
+        });
+    } catch (error: any) {
+        return c.json({error: error.message}, 500);
+    }
+});
+
 // GraphQL endpoints
 app.use("/", graphql({ db, schema }));
 app.use("/graphql", graphql({ db, schema }));

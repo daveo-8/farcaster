@@ -10,6 +10,46 @@ import { Button } from "~/components/ui/button";
 
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { useMiniApp } from "@neynar/react";
+import {useEffect, useState} from "react";
+
+const PONDER_URL = process.env.NEXT_PUBLIC_PONDER_URL || "http://localhost:42069";
+
+type PonderRecentBet = {
+    id: number,
+    bettor: string,
+    share_id: number,
+    race_index: number,
+    horse: string,
+    amount: string,
+    timestamp: string,
+    block_number: number,
+    transaction_hash: string,
+    winner: string | null,
+    outcome: 'pending' | 'won' | 'lost',
+};
+
+type PonderActivityResponse = {
+    count: number,
+    limit: number,
+    bets: PonderRecentBet[];
+}
+
+type PonderLeaderboardRow = {
+    bettor: string,
+    total_bets: number,
+    total_staked: string,
+    settled_bets: number,
+    wins: number,
+    winning_stake: string,
+    win_rate: number;
+}
+
+type PonderLeaderboardResponse = {
+    count: number,
+    limit: number,
+    addressFilter: string | null,
+    leaderboard: PonderLeaderboardRow[];
+}
 
 export function ProfileTab() {
   const { balance, bets, stats, addCoins, updateBetStatus } = useWallet();
@@ -27,6 +67,91 @@ export function ProfileTab() {
   const hasFarcaster = !!farcasterUser;
   const hasWallet = isConnected;
   const isLoggedIn = hasWallet || hasFarcaster;
+
+  const [remoteBets, setRemoteBets] = useState<PonderRecentBet[]>([]);
+  const [remoteStats, setRemoteStats] = useState<{
+    totalWins: number;
+    totalBets: number;
+    winRate: number;
+    totalWon: number;
+  } | null>(null);
+  const [isLoadingRemoteData, setIsLoadingRemoteData] = useState(false);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
+
+  // fall bacl stats
+    const displayStats = remoteStats ?? stats;
+
+    // load activityu and leaderboard from Ponder when wallet is connected
+    useEffect(() => {
+        if (!address) {
+            setRemoteBets([]);
+            setRemoteStats(null);
+            setRemoteError(null);
+            return;
+        }
+
+        let cancelled = false;
+        setIsLoadingRemoteData(true);
+        setRemoteError(null);
+
+        const load = async () => {
+            try {
+                const activityRes = await fetch(`${PONDER_URL}/activity/recent?limit=100`);
+
+                if (!activityRes.ok) {
+                    throw new Error(`Activity fetch failed: ${activityRes.status} ${activityRes.statusText}`);
+                }
+                const activityData: PonderActivityResponse = await activityRes.json();
+
+                // filter by address
+                const userBets = activityData.bets.filter(b => b.bettor.toLowerCase() === address.toLowerCase());
+
+                //fetch leaderboard data
+                const leaderboardRes = await fetch(`${PONDER_URL}/leaderboard?limit=1&address=${address}`);
+                if (!leaderboardRes.ok) {
+                    throw new Error(`Leaderboard fetch failed: ${leaderboardRes.status} ${leaderboardRes.statusText}`);
+                }
+                const leaderboardData: PonderLeaderboardResponse = await leaderboardRes.json();
+
+                const row = leaderboardData.leaderboard[0];
+
+                if (!cancelled) {
+                    setRemoteBets(userBets);
+
+                    if (row) {
+                        setRemoteStats({
+                            totalWins: row.wins,
+                            totalBets: row.total_bets,
+                            winRate: row.win_rate,
+                            totalWon: Number(row.winning_stake ?? 0),
+                        });
+                    } else {
+                        setRemoteStats({
+                            totalWins: 0,
+                            totalBets: 0,
+                            winRate: 0,
+                            totalWon: 0,
+                        });
+                    }
+                }
+            } catch (err: any) {
+                console.error("Failed to load Ponder profile data:", err);
+                if (!cancelled) {
+                    setRemoteError(err?.message ?? "Failed to load on-chain data");
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsLoadingRemoteData(false);
+                }
+            }
+        };
+
+        load();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [address]);
 
   // Get specific connectors
   const metaMaskConnector = connectors.find((c) =>
@@ -139,6 +264,26 @@ export function ProfileTab() {
     farcasterUser?.display_name?.[0]?.toUpperCase() ||
     (address && address.slice(2, 4).toUpperCase()) ||
     "U";
+
+  // map bets pulled from Ponder
+    const mappedRemoteBets = remoteBets.map((bet) => {
+        const status: "pending" | "won" | "lost" = bet.outcome === "won" ? "won" : bet.outcome === "lost" ? "lost" : "pending";
+
+        const amount = Number(bet.amount ?? 0);
+
+        return {
+            id: String(bet.id),
+            raceName: `Race #${bet.race_index}`,
+            horseName: `Horse ${bet.horse}`,
+            odds: 2, // placeholder
+            amount,
+            timestamp: bet.timestamp,
+            status,
+            potentialWin: amount * 2, // placeholder
+        };
+    });
+
+    const recentBetsToShow = mappedRemoteBets.length > 0 ? mappedRemoteBets : bets;
 
   // 1) NOT LOGGED IN → show login options
   if (!isLoggedIn) {
@@ -266,7 +411,7 @@ export function ProfileTab() {
                   Total Wins
                 </span>
               </div>
-              <div className="text-3xl font-bold">{stats.totalWins}</div>
+              <div className="text-3xl font-bold">{displayStats.totalWins}</div>
             </Card>
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-2">
@@ -275,7 +420,7 @@ export function ProfileTab() {
                   Total Bets
                 </span>
               </div>
-              <div className="text-3xl font-bold">{stats.totalBets}</div>
+              <div className="text-3xl font-bold">{displayStats.totalBets}</div>
             </Card>
             <Card className="p-4">
               <div className="flex items-center gap-2 mb-2">
@@ -285,7 +430,7 @@ export function ProfileTab() {
                 </span>
               </div>
               <div className="text-3xl font-bold">
-                {stats.winRate.toFixed(0)}%
+                {displayStats.winRate.toFixed(0)}%
               </div>
             </Card>
             <Card className="p-4">
@@ -296,7 +441,7 @@ export function ProfileTab() {
                 </span>
               </div>
               <div className="text-3xl font-bold">
-                {stats.totalWon.toLocaleString()}
+                {displayStats.totalWon.toLocaleString()}
               </div>
             </Card>
           </div>
@@ -305,14 +450,14 @@ export function ProfileTab() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold">Recent Activity</h2>
-            {bets.length === 0 && (
+            {recentBetsToShow.length === 0 && (
               <span className="text-sm text-muted-foreground">
                 No bets yet
               </span>
             )}
           </div>
           <div className="space-y-3">
-            {bets.slice(0, 10).map((bet) => (
+            {recentBetsToShow.slice(0, 10).map((bet) => (
               <Card key={bet.id} className="p-4">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
