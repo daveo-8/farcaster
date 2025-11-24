@@ -1,33 +1,36 @@
-# OS
-.DS_Store
-Thumbs.db
+# Node.js / JavaScript
+node_modules/
 
-# IDEs
-.idea/
-.vscode/
-*.iml
-
-# Build / output
+# Build output
+.next/
+out/
 dist/
 build/
-target/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Python / Testing
+venv/
+__pycache__/
+tests/__pycache__/
+
+# Coverage reports
 coverage/
+.coverage
 
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-
-# Env / secrets
+# Environment Variables
 .env
 .env.local
 
-# Python
-__pycache__/
-*.pyc
+# IDE / System
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
 
-# Java / C / C++
-*.class
-*.o
-
-/node_modules/
+# Miscellaneous
+tmp/
+temp/
+*.tgz

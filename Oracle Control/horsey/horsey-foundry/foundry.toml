@@ -1,0 +1,18 @@
+[profile.default]
+solc_version = "0.8.29"
+evm_version = "cancun"
+
+optimizer = true
+optimizer_runs = 9_999_999
+
+remappings = [
+  "@solady=lib/solady/",
+  "@forge=lib/forge-std/src/",
+  "@pythnetwork/entropy-sdk-solidity=node_modules/@pythnetwork/entropy-sdk-solidity/"
+]
+
+[profile.via-ir]
+via_ir = true
+
+[fmt]
+line_length = 100

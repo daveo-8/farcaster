@@ -1,0 +1,39 @@
+./01-create-race.sh "Saturday Sprint" '["A","B","C","D"]' +900
+# name, racers(json string), lock offset seconds (+900 -> lock in 15m)
+
+./02-bet.sh <raceId> <racerIndex> <ethAmount> [<privateKey>]
+# example:
+./02-bet.sh 0 2 0.1
+
+
+./03-settle-race.sh <raceId> [randomWord]
+# randomWord optional; defaults to a pseudo-random number
+
+
+
+# default (anvil[0..9]):
+./04-claim-all.sh <raceId>
+
+# custom keys:
+./04-claim-all.sh <raceId> 0xPK1 0xPK2 0xPK3 ...
+
+
+
+
+
+# 0) set config
+nano .env.horsey
+
+# 1) create a race that locks in ~5 minutes
+./01-create-race.sh "Matinee Dash" '["Red","Blue","Green"]' +300
+
+# 2) place a couple bets
+./02-bet.sh 0 0 0.2   # on Red, from default PK
+./02-bet.sh 0 1 0.5 0x59c6995e9... # on Blue, from anvil[1]
+
+# 3) after lock time passes (or just wait), settle:
+./03-settle-race.sh 0
+
+# 4) claim payouts for everyone (anvil[0..9] by default)
+./04-claim-all.sh 0
+

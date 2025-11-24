@@ -1,0 +1,22 @@
+name: Backend Cache Dependencies
+
+on:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Python Dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Dependencies on Cache Miss
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: pip install -r requirements.txt
