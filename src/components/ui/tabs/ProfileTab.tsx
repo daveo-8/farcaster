@@ -30,50 +30,10 @@ export function ProfileTab() {
   const hasWallet = isConnected;
   const isLoggedIn = hasWallet || hasFarcaster;
 
-  // Get specific connectors
-  const metaMaskConnector = connectors.find((c) =>
-    c.name.toLowerCase().includes("meta")
-  );
-  const rabbyConnector = connectors.find(
-    (c) => c.name === "Rabby" || c.id === "rabby"
-  );
+  const [showWalletOptions, setShowWalletOptions] = useState(false);
 
-  const handleLoginWithMetaMask = async () => {
-    if (!metaMaskConnector) {
-      toast("MetaMask not detected", {
-        description: "Install MetaMask or enable it in this browser.",
-      });
-      return;
-    }
-
-    try {
-      await connect({ connector: metaMaskConnector });
-      toast("Connected with MetaMask");
-    } catch (err: any) {
-      console.error(err);
-      toast("MetaMask connection failed", {
-        description: err?.message ?? "Something went wrong.",
-      });
-    }
-  };
-
-  const handleLoginWithRabby = async () => {
-    if (!rabbyConnector) {
-      toast("Rabby not detected", {
-        description: "Install the Rabby extension to use this option.",
-      });
-      return;
-    }
-
-    try {
-      await connect({ connector: rabbyConnector });
-      toast("Connected with Rabby");
-    } catch (err: any) {
-      console.error(err);
-      toast("Rabby connection failed", {
-        description: err?.message ?? "Something went wrong.",
-      });
-    }
+  const handleLoginBrowserWallet = () => {
+    setShowWalletOptions(true);
   };
 
   const handleLoginWithFarcaster = () => {
@@ -83,7 +43,6 @@ export function ProfileTab() {
       });
       return;
     }
-
     if (!farcasterUser) {
       toast("Not running inside Farcaster", {
         description:
@@ -91,8 +50,6 @@ export function ProfileTab() {
       });
       return;
     }
-
-    // No extra action needed here if you treat Farcaster context as "logged in"
     toast("Logged in with Farcaster", {
       description: `Welcome, ${farcasterUser?.username ?? "Farcaster user"}!`,
     });
@@ -156,40 +113,40 @@ export function ProfileTab() {
             Log in to view your profile, wallet balance, and betting history.
           </p>
 
-          <div className="space-y-3">
-            <Button
-              className="w-full"
-              variant="outline"
-              onClick={handleLoginWithMetaMask}
-              disabled={connectStatus === "pending"}
-            >
-              {connectStatus === "pending"
-                ? "Connecting…"
-                : "Log in with MetaMask"}
-            </Button>
-
-            <Button
-              className="w-full"
-              variant="outline"
-              onClick={handleLoginWithRabby}
-              disabled={connectStatus === "pending"}
-            >
-              {connectStatus === "pending"
-                ? "Connecting…"
-                : "Log in with Rabby"}
-            </Button>
-
-            <Button
-              className="w-full"
-              onClick={handleLoginWithFarcaster}
-            >
-              Log in with Farcaster
-            </Button>
+          <div className="mt-6 space-y-2">
+            <h2 className="text-lg font-bold mb-2">Choose Wallet</h2>
+            {connectors.length === 0 && (
+              <div className="text-sm text-muted-foreground">
+                No wallet connectors found. Please install a browser wallet like MetaMask.
+              </div>
+            )}
+            {connectors.map((connector) => (
+              <Button
+                key={connector.uid}
+                className="w-full"
+                variant="secondary"
+                disabled={connectStatus === "pending"}
+                onClick={async () => {
+                  try {
+                    await connect({ connector });
+                    toast("Wallet connected!", {
+                      description: `Connected to ${connector.name}`,
+                    });
+                  } catch (err) {
+                    toast("Wallet connection failed", {
+                      description: err instanceof Error ? err.message : String(err),
+                    });
+                  }
+                }}
+              >
+                {connector.name}
+                {connector.ready === false ? " (not installed)" : ""}
+              </Button>
+            ))}
           </div>
 
           <p className="text-xs text-muted-foreground">
-            You can connect with a browser wallet (MetaMask or Rabby) or use
-            your Farcaster identity when opened as a mini app.
+            You can connect with a browser wallet (MetaMask, Rabby, etc).
           </p>
         </div>
       </div>
@@ -271,7 +228,7 @@ export function ProfileTab() {
                     <button
                         onClick={() => badge.unlocked && setSelectedBadge(badge)}
                         disabled={!badge.unlocked}
-                        className="flex flex-col items-center hover:scale-105 transition-transform disabled:cursor-not-allowed"                
+                        className="flex flex-col items-center hover:scale-105 transition-transform disabled:cursor-not-allowed"
                     >
                         <img
                             src={badge.img}
