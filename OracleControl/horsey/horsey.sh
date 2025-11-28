@@ -184,12 +184,23 @@ cmd_start() {
 
   CONTRACT_ADDRESS=$(jq -r '.transactions[] | select(.contractName == "Horsey") | .contractAddress' broadcast/Deploy.s.sol/31337/run-latest.json | head -1)
   ENTROPY_ADDRESS=$(jq -r '.transactions[] | select(.contractName == "MockEntropy") | .contractAddress' broadcast/Deploy.s.sol/31337/run-latest.json | head -1)
+  TEST_COIN_ADDRESS=$(jq -r '.transactions[] | select(.contractName == "TestCoin") | .contractAddress' broadcast/Deploy.s.sol/31337/run-latest.json | head -1)
 
   echo -e "${GREEN}✅ Contracts deployed${NC}"
   echo -e "${GREEN}   Horsey: $CONTRACT_ADDRESS${NC}"
   echo -e "${GREEN}   MockEntropy: $ENTROPY_ADDRESS${NC}"
+  echo -e "${GREEN}   TestCoin: $TEST_COIN_ADDRESS${NC}"
 
   cd "$SCRIPT_DIR"
+
+  # Extract TestCoin address and ABI for frontend
+  echo -e "${CYAN}Extracting TestCoin address and ABI...${NC}"
+  node "../../scripts/extractTestCoin.js"
+  if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ Failed to extract TestCoin info${NC}"
+    exit 1
+  fi
+  echo -e "${GREEN}✅ TestCoin info extracted${NC}"
 
   # Start Ponder
   echo -e "${CYAN}Starting Ponder...${NC}"
