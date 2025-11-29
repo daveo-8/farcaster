@@ -12,19 +12,14 @@ import { useWallet } from "~/lib/wallet-context";
 import { toast } from "sonner";
 import Link from "next/link";
 
+// ★ Added: import your animation component
+import HorseRaceAnimation from "~/components/HorseRaceAnimation";
+
 // ----- Chain read (fallback) -----
 import type { Abi } from "viem";
-import {
-  createPublicClient,
-  custom,
-  http,
-  encodeFunctionData,
-  parseEther,
-} from "viem";
+import { createPublicClient, custom, http } from "viem";
 
 // Minimal ABI for RaceParimutuelETH_VRF.getRace(uint256)
-// (still here in case you keep the chain-read fallback;
-// your Horsey contract does NOT need to implement this.)
 const RACE_ABI = [
   {
     type: "function",
@@ -32,53 +27,31 @@ const RACE_ABI = [
     stateMutability: "view",
     inputs: [{ name: "raceId", type: "uint256" }],
     outputs: [
-      { type: "string" }, // name
-      { type: "string[]" }, // racers
-      { type: "uint64" }, // startTime
-      { type: "uint64" }, // lockTime
-      { type: "bool" }, // settled
-      { type: "uint8" }, // winnerIndex
-      { type: "uint256" }, // totalPool
-      { type: "uint256[]" }, // poolByRacer
-      { type: "bool" }, // vrfRequested
+      { type: "string" },      
+      { type: "string[]" },    
+      { type: "uint64" },      
+      { type: "uint64" },      
+      { type: "bool" },        
+      { type: "uint8" },       
+      { type: "uint256" },     
+      { type: "uint256[]" },   
+      { type: "bool" },        
     ],
   },
 ] as const satisfies Abi;
 
-// ---- Horsey (betting) ABI & addresses ----
-
-// Horsey: function bet(Horse _horse) public payable returns (uint256)
-// In ABI we treat the enum as uint8.
-const HORSEY_ABI = [
-  {
-    type: "function",
-    name: "bet",
-    stateMutability: "payable",
-    inputs: [{ name: "_horse", type: "uint8" }],
-    outputs: [{ type: "uint256" }],
-  },
-] as const satisfies Abi;
-
-// Addresses you provided:
-const HORSEY_ADDRESS = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512";
-const MOCK_ENTROPY_ADDRESS = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
-
+// You can also put these in NEXT_PUBLIC_ env vars if you like.
 // For fallback read, we’ll prefer window.ethereum; else use RPC_URL if present.
-const RPC_URL = "http://block.techiegogo.com:8545"; // or http://127.0.0.1:8545
-// Keeping this constant for the getRace fallback (if you still use it)
-const RACE_ADDRESS = HORSEY_ADDRESS;
-
-// How many ETH each “coin” represents on-chain.
-// Adjust to whatever mapping you actually want.
-const COIN_TO_ETH = 0.001;
+const RPC_URL = "http://block.techiegogo.com:8545";
+const RACE_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
 
 // ---------------- UI Types ----------------
 type UiHorse = {
-  id: number; // index in racers[]
+  id: number;
   name: string;
-  jockey: string; // not on-chain; “—”
-  odds: number; // implied multiple
-  color: string; // tailwind class
+  jockey: string;     
+  odds: number;       
+  color: string;      
 };
 
 type UiRace = {
@@ -90,6 +63,10 @@ type UiRace = {
   track: string;
   prize: string;
   horses: UiHorse[];
+
+  // ★ Added: on-chain settle status and winner index (0-based)
+  settled: boolean;
+  winnerIndex: number | null;
 };
 
 // ---- Helpers ----
@@ -104,19 +81,11 @@ const formatStartsIn = (target: Date) => {
   return `${m}m`;
 };
 
+// deterministic palette for horse colors
 const COLOR_CLASSES = [
-  "bg-blue-600",
-  "bg-rose-600",
-  "bg-emerald-600",
-  "bg-amber-600",
-  "bg-fuchsia-600",
-  "bg-cyan-600",
-  "bg-indigo-600",
-  "bg-lime-600",
-  "bg-teal-600",
-  "bg-orange-600",
-  "bg-pink-600",
-  "bg-purple-600",
+  "bg-blue-600", "bg-rose-600", "bg-emerald-600", "bg-amber-600",
+  "bg-fuchsia-600", "bg-cyan-600", "bg-indigo-600", "bg-lime-600",
+  "bg-teal-600", "bg-orange-600", "bg-pink-600", "bg-purple-600",
 ];
 
 function pickColor(idx: number) {
@@ -140,7 +109,6 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
   const [err, setErr] = useState<string | null>(null);
   const [selectedHorses, setSelectedHorses] = useState<number[]>([]);
   const [betAmounts, setBetAmounts] = useState<Record<number, string>>({});
-  const [placingOnChain, setPlacingOnChain] = useState(false);
 
   // ---- Try API first, then fall back to direct chain read via viem ----
   useEffect(() => {
@@ -176,12 +144,31 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
         ? found.poolByRacer.map((x: any) => BigInt(x))
         : racers.map(() => 0n);
 
+      // ★ Here we try to read settled / winnerIndex from API (compatible with various field names)
+      const settled: boolean =
+        typeof found.settled === "boolean"
+          ? found.settled
+          : typeof found.vrfFulfilled === "boolean"
+          ? found.vrfFulfilled
+          : false;
+
+      const winnerIndexRaw =
+        found.winnerIndex ??
+        found.winner_index ??
+        found.winner ??
+        null;
+
+      const winnerIndex =
+        winnerIndexRaw === null || winnerIndexRaw === undefined
+          ? null
+          : Number(winnerIndexRaw);
+
       const ui: UiRace = {
         id: Number(params.id),
         name,
         location: "—",
         raceDate: new Date(
-          (lockTimeSec ?? Math.floor(Date.now() / 1000)) * 1000,
+          (lockTimeSec ?? Math.floor(Date.now() / 1000)) * 1000
         ),
         distance: "—",
         track: "—",
@@ -202,12 +189,15 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
             color: pickColor(i),
           };
         }),
+        settled,
+        winnerIndex,
       };
       return ui;
     }
 
     async function fromChain(): Promise<UiRace | null> {
       if (!RACE_ADDRESS) return null;
+
       const transport =
         typeof window !== "undefined" && (window as any).ethereum
           ? custom((window as any).ethereum)
@@ -222,7 +212,7 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
 
       try {
         const res = await client.readContract({
-          address: RACE_ADDRESS as `0x${string}`,
+          address: RACE_ADDRESS,
           abi: RACE_ABI,
           functionName: "getRace",
           args: [raceId],
@@ -245,7 +235,7 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
           boolean,
           number,
           bigint,
-          bigint[],
+          bigint[]
         ];
 
         const ui: UiRace = {
@@ -270,6 +260,12 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
               color: pickColor(i),
             };
           }),
+          settled: Boolean(settled),
+          // In the contract winnerIndex is usually 0-based, can directly use for animation
+          winnerIndex:
+            typeof winnerIndex === "number" && winnerIndex >= 0
+              ? winnerIndex
+              : null,
         };
         return ui;
       } catch (e) {
@@ -313,7 +309,7 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
     setSelectedHorses((prev) =>
       prev.includes(horseId)
         ? prev.filter((id) => id !== horseId)
-        : [...prev, horseId],
+        : [...prev, horseId]
     );
   };
 
@@ -321,69 +317,7 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
     setBetAmounts((prev) => ({ ...prev, [horseId]: value }));
   };
 
-  // ---- On-chain bet helper ----
-  async function placeOnChainBets(
-    finalBets: {
-      raceId: number;
-      horseId: number;
-      amount: number;
-    }[],
-  ) {
-    if (finalBets.length === 0) return;
-
-    if (typeof window === "undefined" || !(window as any).ethereum) {
-      toast("Wallet not found", {
-        description: "Please install MetaMask or another EVM wallet.",
-      });
-      return;
-    }
-
-    const ethereum = (window as any).ethereum;
-
-    // Request accounts
-    const accounts: string[] = await ethereum.request({
-      method: "eth_requestAccounts",
-    });
-    const from = accounts[0];
-
-    // For each bet, send one transaction (Horsey only supports one horse per bet)
-    for (const bet of finalBets) {
-      const ethAmount = bet.amount * COIN_TO_ETH;
-      if (!ethAmount || ethAmount <= 0) continue;
-
-      const valueWei = parseEther(ethAmount.toString());
-
-      // Horse enum in Solidity: NONE, ONE, TWO, ..., SEVEN
-      // So we map UI horseId 0..6 → 1..7
-      const horseEnumValue = bet.horseId + 1;
-
-      const data = encodeFunctionData({
-        abi: HORSEY_ABI,
-        functionName: "bet",
-        args: [horseEnumValue],
-      });
-
-      try {
-        await ethereum.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from,
-              to: HORSEY_ADDRESS,
-              value: "0x" + valueWei.toString(16),
-              data,
-            },
-          ],
-        });
-      } catch (error: any) {
-        // If user rejects, just stop further on-chain txs but keep local state intact.
-        console.error("On-chain bet failed", error);
-        throw error;
-      }
-    }
-  }
-
-  const handlePlaceBet = async () => {
+  const handlePlaceBet = () => {
     if (!race) return;
     if (!selectedHorses.length)
       return toast("No Horses Selected", {
@@ -399,12 +333,13 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
         totalSpent += amount;
         return { horse, amount };
       })
-      .filter(Boolean) as { horse: UiHorse; amount: number }[];
+      .filter(Boolean) as { horse: typeof race.horses[0]; amount: number }[];
 
     if (!totalSpent)
       return toast("Invalid Bet", {
         description: "Enter valid bet amounts.",
       });
+
     if (totalSpent > balance)
       return toast("Insufficient Balance", {
         description: "Not enough coins.",
@@ -420,55 +355,74 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
       potentialWin: Math.round(amount * horse.odds),
     }));
 
-    try {
-      setPlacingOnChain(true);
+    const existingBets = JSON.parse(localStorage.getItem("userBets") || "[]");
+    const allBets = [...existingBets, ...finalBets];
+    localStorage.setItem("userBets", JSON.stringify(allBets));
+    finalBets.forEach(addBet);
 
-      // 1) Send on-chain tx(s) to Horsey
-      await placeOnChainBets(
-        finalBets.map((b) => ({
-          raceId: b.raceId,
-          horseId: b.horseId,
-          amount: b.amount,
-        })),
-      );
+    toast("Bets Placed!", { description: `Placed ${finalBets.length} bet(s)` });
 
-      // 2) Keep your existing local “coins” wallet + storage flow
-      const existingBets = JSON.parse(
-        localStorage.getItem("userBets") || "[]",
-      );
-      const allBets = [...existingBets, ...finalBets];
-      localStorage.setItem("userBets", JSON.stringify(allBets));
-      finalBets.forEach(addBet);
-
-      toast("Bets Placed!", {
-        description: `Placed ${finalBets.length} bet(s) on-chain`,
-      });
-
-      setSelectedHorses([]);
-      setBetAmounts({});
-      router.push(`/horseRoom/${race.id}`);
-    } catch (error: any) {
-      console.error(error);
-      toast("On-chain bet failed", {
-        description:
-          error?.message ?? "Transaction was rejected or failed on-chain.",
-      });
-    } finally {
-      setPlacingOnChain(false);
-    }
+    setSelectedHorses([]);
+    setBetAmounts({});
+    router.push(`/horseRoom/${race.id}`);
   };
 
-  if (loading)
-    return <div className="p-6 text-center">Loading race info…</div>;
+  if (loading) return <div className="p-6 text-center">Loading race info…</div>;
   if (err || !race)
-    return (
-      <div className="p-6 text-center text-red-500">
-        {err ?? "Race not found"}
-      </div>
-    );
+    return <div className="p-6 text-center text-red-500">{err}</div>;
 
   const startsIn = formatStartsIn(race.raceDate);
 
+  // ★ Determine if a result exists → can play animation
+  const hasResult =
+    race.settled &&
+    race.winnerIndex !== null &&
+    race.winnerIndex >= 0 &&
+    race.winnerIndex < race.horses.length;
+
+  // ============ Render ============
+
+  // If result exists → show animation replay + simple result info
+  if (hasResult) {
+    return (
+      <div className="min-h-screen pb-10 bg-background">
+        <header className="border-b border-border bg-card sticky top-0 z-40">
+          <div className="max-w-lg mx-auto px-4 py-4 flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1">
+              <h1 className="text-xl font-bold">{race.name}</h1>
+              <p className="text-sm text-muted-foreground">
+                Race finished — replay
+              </p>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-4xl mx-auto px-4 pt-4 pb-10">
+          <div className="mb-4 flex flex-col gap-2 items-start">
+            <Badge className="bg-emerald-600 text-white flex items-center gap-1">
+              <Trophy className="h-4 w-4" />
+              Winner: Horse #{race.winnerIndex! + 1} –{" "}
+              {race.horses[race.winnerIndex!]?.name}
+            </Badge>
+            <p className="text-sm text-muted-foreground">
+              Pool: {race.prize || "—"}
+            </p>
+          </div>
+
+          {/* Play your race animation */}
+          <HorseRaceAnimation
+            winnerIndex={race.winnerIndex!}
+            numHorses={race.horses.length}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  // Otherwise: normal betting page
   return (
     <div className="min-h-screen pb-20">
       {/* Header */}
@@ -506,7 +460,7 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
           </div>
         </Card>
 
-        {/* Horse (racer) Selection */}
+        {/* Horse Selection */}
         <section>
           <h2 className="text-xl font-bold mb-4">Select Horse(s)</h2>
           <div className="space-y-3">
@@ -538,7 +492,6 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
                         ? `${horse.odds.toFixed(2)}x`
                         : "—"}
                     </div>
-                    <div className="text-xs text-muted-foreground"></div>
                   </div>
                 </div>
               </Card>
@@ -617,9 +570,7 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
 
             <div className="pt-2 mt-4 pb-6 space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">
-                  Available balance:
-                </span>
+                <span className="text-muted-foreground">Available balance:</span>
                 <span className="font-semibold flex items-center gap-1">
                   <Coins className="h-4 w-4 text-primary" />
                   {balance.toLocaleString()}
@@ -627,13 +578,8 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
               </div>
             </div>
 
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={handlePlaceBet}
-              disabled={placingOnChain}
-            >
-              {placingOnChain ? "Placing on-chain…" : "Place Bet"}
+            <Button className="w-full" size="lg" onClick={handlePlaceBet}>
+              Place Bet
             </Button>
           </Card>
         )}
