@@ -17,7 +17,6 @@ FOUNDRY_DIR="horsey-foundry"
 BROADCAST_DIR="$FOUNDRY_DIR/broadcast/Deploy.s.sol/31337"
 ANVIL_PORT=8545
 ANVIL_PID_FILE="/tmp/horsey_anvil.pid"
-ANVIL_IP=http://0.0.0.0
 
 # Cleanup function
 cleanup() {
@@ -93,20 +92,14 @@ if ! kill -0 $ANVIL_PID 2>/dev/null; then
 fi
 
 echo -e "${GREEN}✅ Anvil running (PID: $ANVIL_PID)${NC}"
-echo -e "${BLUE}   RPC: $ANVIL_IP:$ANVIL_PORT${NC}"
+echo -e "${BLUE}   RPC: http://127.0.0.1:$ANVIL_PORT${NC}"
 echo ""
 
 # Step 5: Deploy contracts
 echo -e "${YELLOW}🚀 Deploying contracts...${NC}"
-#forge script script/Deploy.s.sol:DeployLocalScript \
-#  --rpc-url $ANVIL_IP:$ANVIL_PORT \
-#  --broadcast
-
-forge create --rpc-url http://127.0.0.1:8545   --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80   --broadcast   src/MockVRFCoordinatorV2.sol:MockVRFCoordinatorV2
-
-forge create --rpc-url http://127.0.0.1:8545   --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80   --broadcast   src/RaceParimutuelETH_VRF.sol:RaceParimutuelETH_VRF   --constructor-args   0x5FbDB2315678afecb367f032d93F642f64180aa3   0x0000000000000000000000000000000000000000000000000000000000000001   1   500000   0   0x0000000000000000000000000000000000000000
-
-
+forge script script/Deploy.s.sol:DeployLocalScript \
+  --rpc-url http://127.0.0.1:$ANVIL_PORT \
+  --broadcast
 
 if [ $? -ne 0 ]; then
   echo -e "${RED}❌ Contract deployment failed${NC}"
@@ -128,7 +121,7 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo -e "${GREEN}Horsey Contract:${NC}    $CONTRACT_ADDRESS"
 echo -e "${GREEN}MockEntropy Contract:${NC} $ENTROPY_ADDRESS"
-echo -e "${GREEN}Anvil RPC:${NC}          $ANVIL_IP:$ANVIL_PORT"
+echo -e "${GREEN}Anvil RPC:${NC}          http://127.0.0.1:$ANVIL_PORT"
 echo ""
 echo -e "${BLUE}Anvil Accounts:${NC}"
 echo -e "  0: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (Deployer)"

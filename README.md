@@ -53,6 +53,29 @@ IF YOU GET AN ERROR, run these commands, then run npm install again:
 
 --------------------------------------------------------------------
 
+SETUP HORSEY CHAIN
+
+1. download chain:
+ ```git clone https://github.com/doomcrack/horsey.git```
+
+2. install forge:
+
+```curl -L https://foundry.paradigm.xyz | bash```
+
+3. open a NEW terminal and type in:
+```forgeup```
+
+4. open a terminal in the horsey directory:
+
+    - ```cd horsey-foundry && npm install && cd .. ```
+    - ```cd horsey-ponder && npm install && cd ..```
+    - ```cd horsey-app && npm install && cd ..```
+
+5. Start everything:
+    - ```./horsey.sh start```
+    - ```./horsey.sh simulate```
+
+
 
 ## Using localhost for development: ##
 

@@ -10,6 +10,7 @@ import { Button } from "~/components/ui/button";
 import { getBadges } from "~/lib/badges";
 import { useState, useMemo, useEffect } from "react";
 import { useMiniApp } from "@neynar/react";
+import { sdk } from "@farcaster/miniapp-sdk";
 
 import type { Abi } from "viem";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
@@ -17,22 +18,21 @@ import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 // ----------------------------------------------------------------------------
 // Config
 // ----------------------------------------------------------------------------
-
+// enviremoent can be changed using .env file, if nothing found it will default to local host
 const ANVIL_RPC_URL =
   process.env.NEXT_PUBLIC_ANVIL_RPC_URL ?? "http://127.0.0.1:8545";
-
+  
 const WALLET_STORAGE_KEY = "profileTab.connectedWalletAddress";
-// Map of walletAddressLower -> string[] of shareIds
+
+// bypass for broken claims, as of right now claims are store locally
 const CLAIMED_STORAGE_KEY = "profileTab.claimedShareIdsByWallet";
 
 const PONDER_API_URL =
   process.env.NEXT_PUBLIC_PONDER_API_URL ?? "http://127.0.0.1:42069";
 
-// Horsey contract (same as betting page)
 const HORSEY_ADDRESS =
   "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512" as const;
 
-// ABI: claim()
 const HORSEY_ABI = [
   {
     type: "function",
@@ -47,7 +47,7 @@ const HORSEY_ABI = [
 // Helpers
 // ----------------------------------------------------------------------------
 
-async function getAnvilBalance(address: string): Promise<number> {
+async function getAnvilBalance(address: string): Promise<number> { //gets balance :D
   const response = await fetch(ANVIL_RPC_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -76,7 +76,6 @@ async function getAnvilBalance(address: string): Promise<number> {
   return ether;
 }
 
-// Shape of one bet row coming from Ponder /shares/:address
 type PonderBetStatus = "pending" | "lost" | "won" | "claimed" | string;
 
 type PonderShare = {
@@ -93,7 +92,7 @@ type PonderShare = {
   block_number?: string | number | bigint;
   transaction_hash?: string;
 
-  claimed?: boolean; // from Ponder (may not be updated)
+  claimed?: boolean; // from Ponder, broken and not working
   winner?: number | string | bigint;
   resolved_timestamp?: string | number | bigint | null;
 
@@ -130,7 +129,7 @@ function normalizeAmountFromWeiLike(x: PonderShare["amount"]): number {
 
   if (!Number.isFinite(n)) return 0;
 
-  // If it's huge, treat as wei and convert to ETH/coins
+  // number has 18 zeros........ yeah no, get rid of them
   if (Math.abs(n) > 1e9) {
     return n / 1e18;
   }
@@ -182,6 +181,39 @@ function getShareId(bet: PonderShare): bigint | null {
   }
 }
 
+export default function ProfilePicture() {
+  const [pfpUrl, setPfpUrl] = useState<string | null>(null);
+  const { context } = useMiniApp() as any;
+  const farcasterUser = context?.user;
+  const [walletAddress] = useState<string | null>(null);
+
+  const initials =
+    farcasterUser?.display_name?.[0]?.toUpperCase() ||
+    (walletAddress && walletAddress.slice(2, 4).toUpperCase()) ||
+    "U";
+
+  useEffect(() => {
+    async function loadContext() {
+      const inMini = await sdk.isInMiniApp();
+      if (!inMini) {
+        return;
+      }
+      const context = await sdk.context;
+      if (context.user?.pfpUrl) {
+        setPfpUrl(context.user.pfpUrl);
+      }
+    }
+
+    loadContext();
+  }, []);
+
+  if (!pfpUrl) {
+    return <AvatarFallback className="test-2xl font-bold">{initials}</AvatarFallback>;
+  }
+
+  return <img src={pfpUrl} alt="User avatar" width={64} height={64} />;
+}
+
 // ----------------------------------------------------------------------------
 // Component
 // ----------------------------------------------------------------------------
@@ -189,15 +221,15 @@ function getShareId(bet: PonderShare): bigint | null {
 export function ProfileTab() {
   const { balance, bets, addCoins } = useWallet();
 
-  // simple wallet state (no wagmi for connect UI)
+  // simple wallet state aka no chain
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
-  // on-chain balance from anvil
+  // on chain money
   const [onChainBalance, setOnChainBalance] = useState<number | null>(null);
   const [isLoadingBalance, setIsLoadingBalance] = useState(false);
 
-  // Ponder bets & races
+  // bets & races loaded from ponder
   const [ponderBets, setPonderBets] = useState<PonderShare[]>([]);
   const [isLoadingPonderBets, setIsLoadingPonderBets] = useState(false);
   const [ponderError, setPonderError] = useState<string | null>(null);
@@ -205,10 +237,10 @@ export function ProfileTab() {
   const [ponderRaces, setPonderRaces] = useState<PonderRace[]>([]);
   const [isLoadingRaces, setIsLoadingRaces] = useState(false);
 
-  // locally-claimed shareIds for the *current wallet*
+  // holder for local claims
   const [claimedLocalShareIds, setClaimedLocalShareIds] = useState<string[]>([]);
 
-  // wagmi (for on-chain claim)
+  // claim helpers
   const { address: wagmiAddress } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
@@ -221,11 +253,11 @@ export function ProfileTab() {
   const hasWallet = !!walletAddress;
   const isLoggedIn = hasWallet || hasFarcaster;
 
-  // Achievement badges (still based on local bets for now)
+  // Achievement badges
   const [selectedBadge, setSelectedBadge] = useState<any>(null);
   const badges = useMemo(() => getBadges(bets), [bets]);
 
-  // ---- restore wallet from localStorage ----
+  // restore wallet from localStorage, this works cuz when making a bet it will goes through the wallet and that will stop insufficent funds
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -238,7 +270,7 @@ export function ProfileTab() {
     }
   }, []);
 
-  // ---- restore claimed shareIds for the current wallet from localStorage ----
+  // restore claimed bets from localStorage, needed or the buttons reappear
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -276,7 +308,6 @@ export function ProfileTab() {
     }
   }, [walletAddress]);
 
-  // helper: persist claimed shareIds for current wallet
   const markLocalClaimed = (shareIdStr: string) => {
     if (!walletAddress) return;
 
@@ -426,7 +457,7 @@ export function ProfileTab() {
     });
   };
 
-  // ---- Fetch on-chain balance from anvil whenever the wallet address changes ----
+  //Fetch balance from anvil when changes happen
   useEffect(() => {
     if (!walletAddress) {
       setOnChainBalance(null);
@@ -468,7 +499,6 @@ export function ProfileTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletAddress]);
 
-  // ---- Fetch betting history from Ponder whenever walletAddress changes ----
   useEffect(() => {
     if (!walletAddress) {
       setPonderBets([]);
@@ -516,7 +546,6 @@ export function ProfileTab() {
     };
   }, [walletAddress]);
 
-  // ---- Fetch races from Ponder (for winner info) ----
   useEffect(() => {
     let cancelled = false;
 
@@ -546,7 +575,7 @@ export function ProfileTab() {
     };
   }, []);
 
-  // ---- Manual claim handler (optimistic UI + localStorage only) ----
+  //claim handler
   const handleClaim = async (bet: PonderShare) => {
     if (!walletAddress) {
       toast("Connect your wallet first");
@@ -578,7 +607,7 @@ export function ProfileTab() {
 
     const shareIdStr = shareId.toString();
 
-    //  Immediately mark as claimed locally so the button disappears
+//mark as claimed even if user hits cancel, this is a bypass, please fix
     markLocalClaimed(shareIdStr);
     setPonderBets((prev) =>
       prev.map((b) => {
@@ -625,8 +654,6 @@ export function ProfileTab() {
       toast("Claim transaction may have failed", {
         description: err?.message ?? "Check the transaction in your wallet.",
       });
-      // We do NOT revert the local claimed state – you asked
-      // for the button to stay gone once clicked.
     }
   };
 
@@ -656,7 +683,6 @@ export function ProfileTab() {
       ? onChainBalance
       : balance;
 
-  // Build quick map raceIndex -> race (for winners)
   const raceByIndex = useMemo(() => {
     const map = new Map<number, PonderRace>();
     for (const r of ponderRaces) {
@@ -669,7 +695,7 @@ export function ProfileTab() {
     return map;
   }, [ponderRaces]);
 
-  // 1) NOT LOGGED IN → show login options
+  // login window
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen pb-20 flex flex-col items-center justify-center px-4">
@@ -712,22 +738,17 @@ export function ProfileTab() {
     );
   }
 
-  // 2) LOGGED IN → full profile UI
+  //real profile tab
   return (
     <div className="min-h-screen pb-20">
       <header className="border-b border-border bg-card rounded-lg">
         <div className="max-w-lg mx-auto px-4 py-6">
           <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20 border-2 border-primary">
-              <AvatarImage
-                src={
-                  farcasterUser?.pfp_url ??
-                  "/placeholder.svg?height=80&width=80"
-                }
-              />
-              <AvatarFallback className="text-2xl font-bold">
+            <Avatar className="h-20 w-20 border-2 border-primary flex items-center justify-center">
+              <ProfilePicture />
+              {/* <AvatarFallback className="text-2xl font-bold">
                 {initials}
-              </AvatarFallback>
+              </AvatarFallback> */}
             </Avatar>
             <div className="flex-1">
               <div className="flex items-start justify-between gap-2">
@@ -854,7 +875,7 @@ export function ProfileTab() {
           )}
         </section>
 
-        {/* Recent Activity (from Ponder) */}
+        {/* Recent Activity */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold">Recent Activity</h2>

@@ -139,7 +139,7 @@ function createWhiteBar(item: TimerItem): HTMLDivElement {
   return bar;
 }
 
-// Update an existing bar IN PLACE (no re-create = no flicker)
+// inplace update to stop flickering
 function updateBarFromItem(bar: HTMLDivElement, item: TimerItem) {
   bar.setAttribute("data-id", item.id);
   bar.setAttribute("data-name", item.name);
@@ -189,12 +189,9 @@ function updateBarFromItem(bar: HTMLDivElement, item: TimerItem) {
     }
   }
 
-  // Don't set blocks text here; that's driven by live head updates
 }
 
-/**
- * Normalize API output to TimerItem[].
- */
+
 async function loadFromServer(): Promise<TimerItem[]> {
   let res = await fetch("/api/info?full=1", { cache: "no-store" });
   if (!res.ok) {
@@ -241,7 +238,7 @@ async function loadFromServer(): Promise<TimerItem[]> {
   });
 }
 
-// Keep only upcoming-ish entries; server already filters but we sort here
+// upcoming entries
 function sortAndFilter(items: TimerItem[], nowMs = Date.now()) {
   return items
     .filter((i) => Date.parse(i.time) > nowMs || i.placeholder === true)
@@ -259,7 +256,6 @@ function padWithPlaceholders(items: TimerItem[], needed: number): TimerItem[] {
   return out;
 }
 
-// Keyed, in-place patch (flicker-free)
 function patchBars(container: HTMLElement, items: TimerItem[], limit = MAX_ON_SCREEN) {
   const desired = items.slice(0, limit);
   const existing = Array.from(container.querySelectorAll<HTMLDivElement>('div[data-key]'));
@@ -394,15 +390,14 @@ export async function startWhiteBars() {
     const padded = padWithPlaceholders(fresh, MAX_ON_SCREEN);
     patchBars(container, padded);
 
-    // 🔍 If there are no real races (fresh.length === 0),
-    // everything on screen is TBD → poll aggressively (0.5s).
-    // Otherwise, go back to normal (10s).
+	// If everything on screen is TBD refresh rate is maxed out.
+    // Otherwise refresh is 10 seconds
     const allTbd = fresh.length === 0;
     setRefreshInterval(allTbd);
   }
 
   try {
-    await refreshAll(); // initial render + sets appropriate interval
+    await refreshAll(); 
   } catch (e) {
     console.error(e);
   }

@@ -81,7 +81,7 @@ bettor_process() {
 
   while true; do
     # Random chance to place a bet (60% chance each iteration)
-    if [ $((RANDOM % 100)) -lt 60 ]; then
+    if [ $((RANDOM % 100)) -lt 20 ]; then
       # Try to place a random bet (script will check if betting window is open)
       PRIVATE_KEY=$private_key forge script script/Bet.s.sol \
         --sig "placeRandomBet(address)" $CONTRACT_ADDRESS \
@@ -123,8 +123,8 @@ run_race() {
 
   # Mine blocks to simulate time passing
   for ((i=1; i<=betting_blocks; i++)); do
-      sleep 500
     cast rpc anvil_mine 1 --rpc-url http://127.0.0.1:8545 > /dev/null 2>&1
+    sleep 0.8
   done
 
   echo -e "${YELLOW}🔒 Betting window should be closed now${NC}"

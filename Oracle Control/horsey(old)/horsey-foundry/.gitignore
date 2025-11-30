@@ -1,0 +1,7 @@
+/cache
+/node_modules
+/out
+/generated
+/dist
+/.ponder
+/ponder.db
