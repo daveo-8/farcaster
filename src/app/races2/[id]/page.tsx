@@ -1,630 +1,436 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+
 import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Clock, Trophy, Coins, ChevronLeft } from "lucide-react";
-import { useWallet } from "~/lib/wallet-context";
 import { toast } from "sonner";
-import Link from "next/link";
+import { useWallet } from "~/lib/wallet-context";
 
-// ----- Chain read (fallback) -----
-import type { Abi } from "viem";
-import {
-  createPublicClient,
-  custom,
-  http,
-  encodeFunctionData,
-  parseEther,
-} from "viem";
+// ⭐ Use your already written animation component
+import HorseRaceAnimation from "~/components/HorseRaceAnimation";
 
-const RACE_ABI = [
-  {
-    type: "function",
-    name: "getRace",
-    stateMutability: "view",
-    inputs: [{ name: "raceId", type: "uint256" }],
-    outputs: [
-      { type: "string" }, // name
-      { type: "string[]" }, // racers
-      { type: "uint64" }, // startTime
-      { type: "uint64" }, // lockTime
-      { type: "bool" }, // settled
-      { type: "uint8" }, // winnerIndex
-      { type: "uint256" }, // totalPool
-      { type: "uint256[]" }, // poolByRacer
-      { type: "bool" }, // vrfRequested
-    ],
-  },
-] as const satisfies Abi;
-
-// ---- Horsey (betting) ABI & addresses ----
-
-const HORSEY_ABI = [
-  {
-    type: "function",
-    name: "bet",
-    stateMutability: "payable",
-    inputs: [{ name: "_horse", type: "uint8" }],
-    outputs: [{ type: "uint256" }],
-  },
-] as const satisfies Abi;
-
-// Addresses you provided:
-const HORSEY_ADDRESS = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512";
-const MOCK_ENTROPY_ADDRESS = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
-
-const RPC_URL = "http://127.0.0.1:8545"; 
-const RACE_ADDRESS = HORSEY_ADDRESS;
-
-const COIN_TO_ETH = 1.00;
-
-// ---------------- UI Types ----------------
-type UiHorse = {
-  id: number; 
+// ---- Type definitions: add more fields depending on your backend / contract ----
+interface UiHorse {
+  index: number; // 0-based
   name: string;
-  jockey: string; 
-  odds: number; 
-  color: string; 
-};
+  odds: number; // e.g. 2.5 = 2.5x
+  totalBetAmount?: number;
+}
 
-type UiRace = {
-  id: number;
-  name: string;
-  location: string;
-  raceDate: Date;
-  distance: string;
-  track: string;
-  prize: string;
+interface UiRace {
+  id: string;
+  title: string;
+  description?: string;
   horses: UiHorse[];
-};
-
-// ---- Helpers ----
-const formatStartsIn = (target: Date) => {
-  const ms = target.getTime() - Date.now();
-  if (ms <= 0) return "0m";
-  const totalMinutes = Math.floor(ms / 60000);
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
-  if (h && m) return `${h}h ${m}m`;
-  if (h) return `${h}h`;
-  return `${m}m`;
-};
-
-const COLOR_CLASSES = [
-  "bg-blue-600",
-  "bg-rose-600",
-  "bg-emerald-600",
-  "bg-amber-600",
-  "bg-fuchsia-600",
-  "bg-cyan-600",
-  "bg-indigo-600",
-  "bg-lime-600",
-  "bg-teal-600",
-  "bg-orange-600",
-  "bg-pink-600",
-  "bg-purple-600",
-];
-
-function pickColor(idx: number) {
-  return COLOR_CLASSES[idx % COLOR_CLASSES.length];
+  // Here we only care about settled + winnerIndex, others can be added as needed
+  settled: boolean;
+  winnerIndex: number | null; // 0-based
+  startTime?: string;
+  closeTime?: string;
 }
 
-function weiToEthStr(bi: bigint) {
-  const s = bi.toString().padStart(19, "0");
-  const whole = s.slice(0, -18) || "0";
-  const frac = s.slice(-18).slice(0, 4).padEnd(4, "0");
-  return `${whole}.${frac}`;
-}
-
-// ---------------- Page ----------------
-export default function RaceDetailPage({ params }: { params: { id: string } }) {
+// ---- Page component ----
+export default function RaceDetailPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const router = useRouter();
-  const { balance, addBet } = useWallet();
+  const { address, balance } = useWallet();
 
   const [race, setRace] = useState<UiRace | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [selectedHorses, setSelectedHorses] = useState<number[]>([]);
-  const [betAmounts, setBetAmounts] = useState<Record<number, string>>({});
-  const [placingOnChain, setPlacingOnChain] = useState(false);
 
+  // Betting related local state
+  const [selectedHorseIndex, setSelectedHorseIndex] = useState<number | null>(
+    null
+  );
+  const [betAmount, setBetAmount] = useState<string>("");
+
+  // ----- Load race data -----
   useEffect(() => {
     let alive = true;
 
-    async function fromApi(): Promise<UiRace | null> {
-      let res = await fetch("/api/info?full=1", { cache: "no-store" });
-      if (!res.ok) {
-        res = await fetch("/api/info", { cache: "no-store" });
-        if (!res.ok) return null;
-      }
-      const data = (await res.json()) as any[];
-      const found =
-        data.find((r) => String(r.raceId) === params.id) ??
-        data.find((r) => String(r.id) === params.id);
-      if (!found) return null;
-
-      const lockTimeSec: number | null =
-        typeof found.lockTime !== "undefined"
-          ? Number(found.lockTime)
-          : found.time
-          ? Math.floor(Date.parse(String(found.time)) / 1000)
-          : null;
-
-      const name: string = found.name ?? `Race ${params.id}`;
-      const racers: string[] = Array.isArray(found.racers) ? found.racers : [];
-      const totalPoolWei: bigint = found.totalPoolWei
-        ? BigInt(found.totalPoolWei)
-        : BigInt(found.totalPool ?? 0);
-      const poolByRacerWei: bigint[] = Array.isArray(found.poolByRacerWei)
-        ? found.poolByRacerWei.map((x: any) => BigInt(x))
-        : Array.isArray(found.poolByRacer)
-        ? found.poolByRacer.map((x: any) => BigInt(x))
-        : racers.map(() => 0n);
-
-      const ui: UiRace = {
-        id: Number(params.id),
-        name,
-        location: "—",
-        raceDate: new Date(
-          (lockTimeSec ?? Math.floor(Date.now() / 1000)) * 1000,
-        ),
-        distance: "—",
-        track: "—",
-        prize: totalPoolWei
-          ? `Pool: ${weiToEthStr(totalPoolWei)} ETH`
-          : "—",
-        horses: racers.map((nm, i) => {
-          const pool = poolByRacerWei[i] ?? 0n;
-          const odds =
-            pool > 0n && totalPoolWei > 0n
-              ? Number((totalPoolWei * 1_000_000n) / pool) / 1_000_000
-              : 1;
-          return {
-            id: i,
-            name: nm,
-            jockey: "—",
-            odds,
-            color: pickColor(i),
-          };
-        }),
-      };
-      return ui;
-    }
-
-    async function fromChain(): Promise<UiRace | null> {
-      if (!RACE_ADDRESS) return null;
-      const transport =
-        typeof window !== "undefined" && (window as any).ethereum
-          ? custom((window as any).ethereum)
-          : RPC_URL
-          ? http(RPC_URL)
-          : null;
-
-      if (!transport) return null;
-
-      const client = createPublicClient({ transport });
-      const raceId = BigInt(params.id);
+    async function loadRace() {
+      setLoading(true);
+      setErr(null);
 
       try {
-        const res = await client.readContract({
-          address: RACE_ADDRESS as `0x${string}`,
-          abi: RACE_ABI,
-          functionName: "getRace",
-          args: [raceId],
+        // 👇 Using example API here; replace with your own
+        const res = await fetch(`/api/races/${params.id}`, {
+          cache: "no-store",
         });
 
-        const [
-          name,
-          racers,
-          startTime,
-          lockTime,
-          settled,
-          winnerIndex,
-          totalPool,
-          poolByRacer,
-        ] = res as unknown as [
-          string,
-          string[],
-          bigint,
-          bigint,
-          boolean,
-          number,
-          bigint,
-          bigint[],
-        ];
-
-        const ui: UiRace = {
-          id: Number(params.id),
-          name: name ?? `Race ${params.id}`,
-          location: "—",
-          raceDate: new Date(Number(lockTime) * 1000),
-          distance: "—",
-          track: "—",
-          prize: totalPool ? `Pool: ${weiToEthStr(totalPool)} ETH` : "—",
-          horses: (racers || []).map((nm, i) => {
-            const pool = (poolByRacer || [])[i] ?? 0n;
-            const odds =
-              pool > 0n && totalPool > 0n
-                ? Number((totalPool * 1_000_000n) / pool) / 1_000_000
-                : 1;
-            return {
-              id: i,
-              name: nm,
-              jockey: "—",
-              odds,
-              color: pickColor(i),
-            };
-          }),
-        };
-        return ui;
-      } catch (e) {
-        console.error("Direct chain read failed:", e);
-        return null;
-      }
-    }
-
-    (async () => {
-      try {
-        setLoading(true);
-        setErr(null);
-
-        const viaApi = await fromApi();
-        if (alive && viaApi) {
-          setRace(viaApi);
-          return;
+        if (!res.ok) {
+          throw new Error(`Failed to load race: ${res.statusText}`);
         }
 
-        const viaChain = await fromChain();
-        if (alive && viaChain) {
-          setRace(viaChain);
-          return;
-        }
+        const data = (await res.json()) as UiRace;
 
-        if (alive) setErr(`Race ${params.id} not found`);
+        if (!alive) return;
+        setRace(data);
       } catch (e: any) {
-        if (alive) setErr(e?.message ?? "Failed to load race data");
+        console.error(e);
+        if (!alive) return;
+        setErr(e?.message ?? "Failed to load race");
       } finally {
         if (alive) setLoading(false);
       }
-    })();
+    }
 
+    loadRace();
     return () => {
       alive = false;
     };
   }, [params.id]);
 
-  // ---- Handlers ----
-  const handleHorseSelect = (horseId: number) => {
-    setSelectedHorses((prev) =>
-      prev.includes(horseId)
-        ? prev.filter((id) => id !== horseId)
-        : [...prev, horseId],
+  // Whether the race already has results
+  const hasResult = useMemo(() => {
+    if (!race) return false;
+    return (
+      race.settled &&
+      race.winnerIndex !== null &&
+      race.winnerIndex >= 0 &&
+      race.winnerIndex < race.horses.length
     );
-  };
+  }, [race]);
 
-  const handleBetAmountChange = (horseId: number, value: string) => {
-    setBetAmounts((prev) => ({ ...prev, [horseId]: value }));
-  };
-
-  // ---- On-chain bet helper ----
-  async function placeOnChainBets(
-    finalBets: {
-      raceId: number;
-      horseId: number;
-      amount: number;
-    }[],
-  ) {
-    if (finalBets.length === 0) return;
-
-    if (typeof window === "undefined" || !(window as any).ethereum) {
-      toast("Wallet not found", {
-        description: "Please install MetaMask or another EVM wallet.",
-      });
+  // Betting button logic (example only — replace with contract logic)
+  async function handlePlaceBet() {
+    if (!race) return;
+    if (!address) {
+      toast.error("Please connect wallet first.");
+      return;
+    }
+    if (selectedHorseIndex === null) {
+      toast.error("Please select a horse.");
+      return;
+    }
+    const amountNum = Number(betAmount);
+    if (!amountNum || amountNum <= 0) {
+      toast.error("Please enter a valid bet amount.");
       return;
     }
 
-    const ethereum = (window as any).ethereum;
+    try {
+      toast.loading("Placing bet...", { id: "bet" });
 
-    // Request accounts
-    const accounts: string[] = await ethereum.request({
-      method: "eth_requestAccounts",
-    });
-    const from = accounts[0];
-
-    // For each bet, send one transaction (Horsey only supports one horse per bet)
-    for (const bet of finalBets) {
-      const ethAmount = bet.amount * COIN_TO_ETH;
-      if (!ethAmount || ethAmount <= 0) continue;
-
-      const valueWei = parseEther(ethAmount.toString());
-
-      // Horse enum in Solidity: NONE, ONE, TWO, ..., SEVEN
-      // So we map UI horseId 0..6 → 1..7
-      const horseEnumValue = bet.horseId + 1;
-
-      const data = encodeFunctionData({
-        abi: HORSEY_ABI,
-        functionName: "bet",
-        args: [horseEnumValue],
+      // ❗ Example only: replace with your real bet API / contract call
+      const res = await fetch(`/api/bet`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          raceId: race.id,
+          horseIndex: selectedHorseIndex, // 0-based
+          amount: amountNum,
+        }),
       });
 
-      try {
-        await ethereum.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from,
-              to: HORSEY_ADDRESS,
-              value: "0x" + valueWei.toString(16),
-              data,
-            },
-          ],
-        });
-      } catch (error: any) {
-        // If user rejects, just stop further on-chain txs but keep local state intact.
-        console.error("On-chain bet failed", error);
-        throw error;
+      if (!res.ok) {
+        const e = await res.text();
+        throw new Error(e || "Bet failed");
       }
+
+      toast.success("Bet placed!", { id: "bet" });
+      // Refresh race data after bet
+      router.refresh?.();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message ?? "Bet failed", { id: "bet" });
     }
   }
 
-  const handlePlaceBet = async () => {
-    if (!race) return;
-    if (!selectedHorses.length)
-      return toast("No Horses Selected", {
-        description: "Select at least one horse.",
-      });
+  // ====== Render section ======
 
-    let totalSpent = 0;
-    const bets = selectedHorses
-      .map((id) => {
-        const horse = race.horses.find((h) => h.id === id);
-        const amount = parseFloat(betAmounts[id]);
-        if (!horse || isNaN(amount) || amount <= 0) return null;
-        totalSpent += amount;
-        return { horse, amount };
-      })
-      .filter(Boolean) as { horse: UiHorse; amount: number }[];
-
-    if (!totalSpent)
-      return toast("Invalid Bet", {
-        description: "Enter valid bet amounts.",
-      });
-    if (totalSpent > balance)
-      return toast("Insufficient Balance", {
-        description: "Not enough coins.",
-      });
-
-    const finalBets = bets.map(({ horse, amount }) => ({
-      raceId: race.id,
-      raceName: race.name,
-      horseId: horse.id,
-      horseName: horse.name,
-      amount,
-      odds: horse.odds,
-      potentialWin: Math.round(amount * horse.odds),
-    }));
-
-    try {
-      setPlacingOnChain(true);
-
-      await placeOnChainBets(
-        finalBets.map((b) => ({
-          raceId: b.raceId,
-          horseId: b.horseId,
-          amount: b.amount,
-        })),
-      );
-
-      const existingBets = JSON.parse(
-        localStorage.getItem("userBets") || "[]",
-      );
-      const allBets = [...existingBets, ...finalBets];
-      localStorage.setItem("userBets", JSON.stringify(allBets));
-      finalBets.forEach(addBet);
-
-      toast("Bets Placed!", {
-        description: `Placed ${finalBets.length} bet(s) on-chain`,
-      });
-
-      setSelectedHorses([]);
-      setBetAmounts({});
-      router.push(`/horseRoom/${race.id}`);
-    } catch (error: any) {
-      console.error(error);
-      toast("On-chain bet failed", {
-        description:
-          error?.message ?? "Transaction was rejected or failed on-chain.",
-      });
-    } finally {
-      setPlacingOnChain(false);
-    }
-  };
-
-  if (loading)
-    return <div className="p-6 text-center">Loading race info…</div>;
-  if (err || !race)
+  if (loading) {
     return (
-      <div className="p-6 text-center text-red-500">
-        {err ?? "Race not found"}
+      <div className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-400 mx-auto" />
+          <p className="text-slate-300">Loading race...</p>
+        </div>
       </div>
     );
+  }
 
-  const startsIn = formatStartsIn(race.raceDate);
-
-  return (
-    <div className="min-h-screen pb-20">
-      {/* Header */}
-      <header className="border-b border-border bg-card sticky top-0 z-40">
-        <div className="max-w-lg mx-auto px-4 py-4 flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ChevronLeft className="h-5 w-5" />
+  if (err || !race) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center">
+        <Card className="bg-slate-900/80 border-slate-800 max-w-md w-full mx-4 p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-slate-400 hover:text-slate-50"
+              onClick={() => router.push("/races2")}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+            <h1 className="text-xl font-semibold">Race not found</h1>
+          </div>
+          <p className="text-slate-400">
+            {err ?? "The race you are looking for does not exist."}
+          </p>
+          <Button
+            variant="outline"
+            className="border-slate-700 text-slate-200 hover:bg-slate-800"
+            onClick={() => router.push("/races2")}
+          >
+            Back to Races
           </Button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold">{race.name}</h1>
-            <p className="text-sm text-muted-foreground">Place your bet</p>
-          </div>
-        </div>
-      </header>
-
-      {/* Top Card */}
-      <main className="max-w-lg mx-auto px-8 py-6 space-y-6">
-        <Card className="p-4 flex flex-col justify-between min-h-[130px]">
-          <div className="space-y-2 text-center">
-            <Badge className="bg-primary/20 text-primary border-primary/30">
-              Starting Soon
-            </Badge>
-            <div className="flex justify-center items-center gap-2 text-sm">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span>Starts in {startsIn}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-sm text-muted-foreground mt-4 border-t pt-3">
-            <span>{race.distance}</span>
-            <span className="flex items-center gap-1 text-foreground font-semibold">
-              <Trophy className="h-4 w-4 text-primary" />
-              {race.prize || "—"}
-            </span>
-          </div>
         </Card>
+      </div>
+    );
+  }
 
-        {/* Horse (racer) Selection */}
-        <section>
-          <h2 className="text-xl font-bold mb-4">Select Horse(s)</h2>
-          <div className="space-y-3">
-            {race.horses.map((horse) => (
-              <Card
-                key={horse.id}
-                onClick={() => handleHorseSelect(horse.id)}
-                className={`p-4 cursor-pointer transition-all ${
-                  selectedHorses.includes(horse.id)
-                    ? "ring-2 ring-primary bg-primary/5"
-                    : "hover:bg-secondary/50"
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div
-                    className={`w-12 h-12 rounded-lg ${horse.color} flex items-center justify-center text-white font-bold text-lg`}
-                  >
-                    {horse.id}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold">{horse.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Jockey: {horse.jockey}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-primary">
-                      {Number.isFinite(horse.odds)
-                        ? `${horse.odds.toFixed(2)}x`
-                        : "—"}
-                    </div>
-                    <div className="text-xs text-muted-foreground"></div>
-                  </div>
+  // ✅ If results exist -> show winner + animation
+  if (hasResult) {
+    const winnerHorse = race.horses[race.winnerIndex!];
+
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-50">
+        <header className="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
+          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-slate-300 hover:text-slate-50"
+              onClick={() => router.push("/races2")}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-emerald-600/90 text-emerald-50">
+                  <Trophy className="w-3 h-3 mr-1" />
+                  Finished
+                </Badge>
+                <span className="text-xs text-slate-400">
+                  Race #{race.id}
+                </span>
+              </div>
+              <h1 className="text-lg font-semibold mt-1">{race.title}</h1>
+            </div>
+            {address && (
+              <div className="text-right text-xs text-slate-400">
+                <div className="font-mono truncate max-w-[180px]">
+                  {address}
                 </div>
-              </Card>
-            ))}
+                <div className="flex items-center justify-end gap-1">
+                  <Coins className="w-3 h-3 text-amber-400" />
+                  <span>{balance?.toLocaleString?.() ?? "-"}</span>
+                </div>
+              </div>
+            )}
           </div>
-        </section>
+        </header>
 
-        {/* Bet Section */}
-        {selectedHorses.length > 0 && (
-          <Card className="p-6 space-y-6 bg-gradient-to-br from-primary/10 to-secondary/50">
-            <h3 className="text-lg font-bold">Place Your Bet</h3>
-            {selectedHorses.map((horseId) => {
-              const horse = race.horses.find((h) => h.id === horseId)!;
-              const amount = betAmounts[horseId] || "";
-              const potentialWin = amount
-                ? (
-                    Number(amount) *
-                    (Number.isFinite(horse.odds) ? horse.odds : 1)
-                  ).toFixed(0)
-                : "0";
-
-              return (
-                <div
-                  key={horseId}
-                  className="space-y-3 border-b pb-4 last:border-none"
-                >
-                  <p className="font-semibold">
-                    Betting On:{" "}
-                    <span className="text-foreground">{horse.name}</span>
-                  </p>
-                  <Label htmlFor={`bet-${horseId}`}>Bet Amount</Label>
-                  <div className="relative">
-                    <Input
-                      id={`bet-${horseId}`}
-                      type="number"
-                      placeholder="Enter amount"
-                      value={amount}
-                      onChange={(e) =>
-                        handleBetAmountChange(horseId, e.target.value)
-                      }
-                      className="pr-16"
-                    />
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                      coins
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    {[50, 100, 250, 500].map((v) => (
-                      <Button
-                        key={v}
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          handleBetAmountChange(horseId, String(v))
-                        }
-                      >
-                        {v}
-                      </Button>
-                    ))}
-                  </div>
-
-                  {amount && (
-                    <div className="p-3 rounded-lg bg-card border border-border flex justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        Potential Win:
-                      </span>
-                      <span className="text-xl font-bold text-primary">
-                        {potentialWin} coins
-                      </span>
-                    </div>
-                  )}
+        <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+          <Card className="bg-slate-900/70 border-slate-800 overflow-hidden">
+            <div className="px-6 pt-4 pb-3 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-amber-500/90 text-amber-950 flex items-center gap-1">
+                    <Trophy className="w-3 h-3" />
+                    Winner
+                  </Badge>
+                  <span className="text-xs text-slate-400">
+                    Race #{race.id}
+                  </span>
                 </div>
-              );
-            })}
-
-            <div className="pt-2 mt-4 pb-6 space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">
-                  Available balance:
-                </span>
-                <span className="font-semibold flex items-center gap-1">
-                  <Coins className="h-4 w-4 text-primary" />
-                  {balance.toLocaleString()}
-                </span>
+                <h2 className="text-xl font-semibold mt-1">
+                  Horse #{race.winnerIndex! + 1} – {winnerHorse?.name}
+                </h2>
               </div>
             </div>
 
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={handlePlaceBet}
-              disabled={placingOnChain}
-            >
-              {placingOnChain ? "Placing on-chain…" : "Place Bet"}
-            </Button>
+            {/* ⭐ Show your animation inside the card */}
+            <div className="bg-black">
+              <HorseRaceAnimation
+                winnerIndex={race.winnerIndex!} // 0-based
+                numHorses={race.horses.length}
+              />
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between text-sm text-slate-300">
+              <span>
+                Thanks for playing! You can go back to{" "}
+                <Link
+                  href="/races2"
+                  className="text-emerald-400 hover:underline"
+                >
+                  race list
+                </Link>{" "}
+                to join another race.
+              </span>
+            </div>
           </Card>
-        )}
+        </main>
+      </div>
+    );
+  }
+
+  // 🐎 Otherwise: race still open / unsettled -> show betting UI
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-50">
+      <header className="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-slate-300 hover:text-slate-50"
+            onClick={() => router.push("/races2")}
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-sky-600/90 text-sky-50">
+                <Clock className="w-3 h-3 mr-1" />
+                Open for betting
+              </Badge>
+              <span className="text-xs text-slate-400">
+                Race #{race.id}
+              </span>
+            </div>
+            <h1 className="text-lg font-semibold mt-1">{race.title}</h1>
+          </div>
+          {address && (
+            <div className="text-right text-xs text-slate-400">
+              <div className="font-mono truncate max-w-[180px]">
+                {address}
+              </div>
+              <div className="flex items-center justify-end gap-1">
+                <Coins className="w-3 h-3 text-amber-400" />
+                <span>{balance?.toLocaleString?.() ?? "-"}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6">
+        {/* Left: horse list */}
+        <Card className="flex-1 bg-slate-900/70 border-slate-800">
+          <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Select a Horse</h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Choose which horse you think will win the race.
+              </p>
+            </div>
+          </div>
+
+          <div className="divide-y divide-slate-800">
+            {race.horses.map((h) => {
+              const isSelected = selectedHorseIndex === h.index;
+              return (
+                <button
+                  key={h.index}
+                  type="button"
+                  onClick={() => setSelectedHorseIndex(h.index)}
+                  className={`w-full text-left px-6 py-4 flex items-center justify-between hover:bg-slate-800/60 transition ${
+                    isSelected ? "bg-slate-800/80" : ""
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">
+                        Horse #{h.index + 1}
+                      </span>
+                      {isSelected && (
+                        <Badge className="bg-emerald-600/90 text-emerald-50">
+                          Selected
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">{h.name}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center gap-1 text-amber-400 text-sm">
+                      <Trophy className="w-4 h-4" />
+                      <span>{h.odds.toFixed(2)}x</span>
+                    </div>
+                    {typeof h.totalBetAmount === "number" && (
+                      <p className="text-xs text-slate-500 mt-1">
+                        Pool: {h.totalBetAmount.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* Right: betting panel */}
+        <Card className="w-full lg:w-80 bg-slate-900/70 border-slate-800 h-fit">
+          <div className="px-6 py-4 border-b border-slate-800">
+            <h2 className="text-lg font-semibold">Place your Bet</h2>
+            <p className="text-xs text-slate-400 mt-1">
+              Select a horse on the left, then enter your stake.
+            </p>
+          </div>
+
+          <div className="px-6 py-4 space-y-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-slate-300">Selected Horse</Label>
+              <div className="px-3 py-2 rounded border border-slate-700 bg-slate-900/80 text-sm text-slate-200">
+                {selectedHorseIndex === null ? (
+                  <span className="text-slate-500">
+                    No horse selected yet.
+                  </span>
+                ) : (
+                  <>
+                    Horse #{selectedHorseIndex + 1} –{" "}
+                    {
+                      race.horses.find((h) => h.index === selectedHorseIndex)
+                        ?.name
+                    }
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="bet" className="text-xs text-slate-300">
+                Bet Amount
+              </Label>
+              <Input
+                id="bet"
+                type="number"
+                min="0"
+                step="0.01"
+                value={betAmount}
+                onChange={(e) => setBetAmount(e.target.value)}
+                placeholder="Enter amount..."
+                className="bg-slate-900/70 border-slate-700 text-sm"
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span>Wallet balance</span>
+              <span className="flex items-center gap-1">
+                <Coins className="w-3 h-3 text-amber-400" />
+                <span>{balance?.toLocaleString?.() ?? "-"}</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="px-6 pb-4">
+            <Button className="w-full" size="lg" onClick={handlePlaceBet}>
+              Place Bet
+            </Button>
+          </div>
+        </Card>
       </main>
     </div>
   );
