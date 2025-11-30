@@ -2,409 +2,415 @@
 
 import { useEffect, useRef } from "react";
 
-type Props = {
-  /** Index of the winning horse (0-based, 0..numHorses-1) */
-  winnerIndex: number;
-  /** Number of participating horses, default 7 */
-  numHorses?: number;
-  /** Callback after the animation finishes (optional) */
-  onFinished?: () => void;
-};
+const CANVAS_W = 960;
+const CANVAS_H = 360;
 
-type HorseState = {
-  lane: number;
+// Fixed maximum of 7 horses (because LANE_OFFSETS has only 7 tracks, and images are 1~7)
+const MAX_HORSES = 7;
+const COUNTDOWN_SECONDS = 3;
+const RACE_DURATION = 7; // Same as pygame, total 7 seconds
+
+const HORSE_ANCHOR_Y = 0.96;
+const HORSE_GROUND_OFFSET = 40;
+
+// Start / Finish / Track parameters
+const START_X = 60;
+const FINISH_X = 820;
+const FINISH_COLOR = "rgba(220,40,40,1)";
+const FINISH_WIDTH_PX = 6;
+
+// Ground / Track
+const NEAR_TARGET_H = 140;
+const GROUND_OVERLAP = 4;
+
+// Track offsets (max 7 horses)
+const LANE_OFFSETS = [0, 18, 36, 54, 72, 90, 108];
+
+// Finish line appearance time
+const FINISH_APPEAR_T = 3.3;
+const FINISH_END_T = RACE_DURATION;
+
+// Loser horse target range
+const LOSER_MIN_X = 600;
+const LOSER_MAX_X = 780;
+
+// Background scroll speed
+const BG_SCROLL_SPEED = 110; // px/s
+
+// Speed-related
+const MIN_SPEED = 60; // px/s
+const MAX_SPEED = 150;
+const RANDOM_ACCEL = 50;
+const FINAL_PHASE = 0.7; // final 0.7 seconds
+
+type RaceState = "loading" | "countdown" | "running" | "winner" | "finished";
+
+interface HorseState {
   x: number;
   y: number;
-  baseSpeed: number;
-  extraBoost: number;
-  finished: boolean;
-  progress: number;
-};
+  v: number;
+  targetX: number;
+  sheet: HTMLImageElement;
+  frameIndex: number;
+  animTimer: number;
+  frameW: number;
+  frameH: number;
+}
+
+interface HorseRaceAnimationProps {
+  /** 0-based index of winning horse (0 = first horse) */
+  winnerIndex: number;
+  /** Number of participating horses (1–7) */
+  numHorses: number;
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+  });
+}
 
 export default function HorseRaceAnimation({
   winnerIndex,
-  numHorses = 7,
-  onFinished,
-}: Props) {
+  numHorses,
+}: HorseRaceAnimationProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // --------- Basic canvas setup ----------
-    const DPR = window.devicePixelRatio || 1;
-    const VIEW_WIDTH = 900;
-    const VIEW_HEIGHT = 500;
+    canvas.width = CANVAS_W;
+    canvas.height = CANVAS_H;
 
-    canvas.style.width = VIEW_WIDTH + "px";
-    canvas.style.height = VIEW_HEIGHT + "px";
-    canvas.width = VIEW_WIDTH * DPR;
-    canvas.height = VIEW_HEIGHT * DPR;
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    let animationFrameId: number;
+    let running = true;
 
-    // --------- Race parameters ----------
-    const TRACK_PADDING = 80;
-    const TRACK_TOP = 70;
-    const TRACK_BOTTOM = VIEW_HEIGHT - TRACK_PADDING;
-    const TRACK_HEIGHT = TRACK_BOTTOM - TRACK_TOP;
-    const LANE_HEIGHT = TRACK_HEIGHT / numHorses;
-    const START_X = 80;
-    const FINISH_X = VIEW_WIDTH - 80;
+    // Safety handling: limit horse count within 1~MAX_HORSES
+    const horseCount = Math.max(1, Math.min(MAX_HORSES, numHorses));
 
-    const HORSE_WIDTH = 50;
-    const HORSE_HEIGHT = 30;
+    // Treat winnerIndex as 0-based and clamp
+    let winnerIdx = Math.floor(winnerIndex);
+    if (Number.isNaN(winnerIdx) || winnerIdx < 0) winnerIdx = 0;
+    if (winnerIdx >= horseCount) winnerIdx = horseCount - 1;
 
-    // Winner guarantee: leave small buffer before finish line
-    const FINISH_LINE_X = FINISH_X - HORSE_WIDTH - 10;
+    (async () => {
+      // ===== 1. Load image assets =====
+      const bg = await loadImage("/background.png");
+      const horseSheets: HTMLImageElement[] = [];
 
-    // Animation time control
-    const COUNTDOWN_TIME = 1500; // Countdown 1.5s
-    const RACE_DURATION = 8000; // Race about 8 seconds
-    const AFTER_FINISH_PAUSE = 2000; // Pause 2 sec after finish
+      // Load only the needed number of horses (1 ~ horseCount)
+      for (let i = 1; i <= horseCount; i++) {
+        horseSheets.push(await loadImage(`/horse_run_rembg${i}.png`));
+      }
 
-    let horses: HorseState[] = [];
-    let raceStartTime: number | null = null;
-    let countdownStartTime: number | null = null;
-    let finished = false;
-    let allStopped = false;
-    let lastWinnerFinishTime = 0;
+      const FRAME_COUNT = 12; // Each horse has 12 frames
 
-    // --------- Initialize horses ----------
-    function initHorses() {
-      horses = [];
-      for (let i = 0; i < numHorses; i++) {
-        const laneY =
-          TRACK_TOP + LANE_HEIGHT * (i + 0.5) - HORSE_HEIGHT / 2;
+      // ===== 2. Background scrolling parameters =====
+      const bgScale = CANVAS_H / bg.height;
+      const bgTileW = bg.width * bgScale;
+      const bgTileH = CANVAS_H;
+      let bgOffset = 0;
 
-        // Each horse has slightly different base speed
-        const baseSpeed = 0.08 + Math.random() * 0.03; // unit: progress/sec
+      // ===== 3. Track Y positions =====
+      const nearTop = CANVAS_H - NEAR_TARGET_H;
+      const lanes = LANE_OFFSETS.slice(0, horseCount).map(
+        (d) => nearTop + (GROUND_OVERLAP + d),
+      );
 
-        // Winner has extra buff
-        const extraBoost = i === winnerIndex ? 0.06 : 0.0;
+      // ===== 4. Initialize horses =====
+      const horses: HorseState[] = horseSheets.map((sheet, i) => {
+        const frameW = sheet.width / FRAME_COUNT;
+        const frameH = sheet.height;
 
-        horses.push({
-          lane: i,
+        let targetX: number;
+        if (i === winnerIdx) {
+          targetX = FINISH_X + 40;
+        } else {
+          targetX =
+            LOSER_MIN_X + Math.random() * (LOSER_MAX_X - LOSER_MIN_X);
+        }
+
+        return {
           x: START_X,
-          y: laneY,
-          baseSpeed,
-          extraBoost,
-          finished: false,
-          progress: 0,
+          y: lanes[i],
+          v: 120 + Math.random() * 60,
+          targetX,
+          sheet,
+          frameIndex: 0,
+          animTimer: 0,
+          frameW,
+          frameH,
+        };
+      });
+
+      // ===== 5. State machine variables =====
+      let state: RaceState = "countdown";
+      let countdownT = 0;
+      let raceT = 0;
+      let winnerTextT = 0;
+      let winnerCrossed = false;
+
+      let lastTime = performance.now();
+
+      // ===== 6. Rendering functions =====
+      const drawBackground = () => {
+        ctx.fillStyle = "#2c3e50";
+        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+        // Tile background
+        let startX = -((bgOffset % bgTileW) + bgTileW);
+        while (startX < CANVAS_W + bgTileW) {
+          ctx.drawImage(
+            bg,
+            0,
+            0,
+            bg.width,
+            bg.height,
+            startX,
+            0,
+            bgTileW,
+            bgTileH,
+          );
+          startX += bgTileW;
+        }
+
+        // Track separator lines
+        ctx.strokeStyle = "rgba(255,255,255,0.3)";
+        ctx.lineWidth = 1;
+        const trackLineOffsets = Array.from(
+          { length: lanes.length + 1 },
+          (_, i) => 20 + i * 20,
+        );
+        trackLineOffsets.forEach((off) => {
+          const y = nearTop + off;
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(CANVAS_W, y);
+          ctx.stroke();
         });
-      }
-    }
+      };
 
-    initHorses();
+      const drawFinishLine = () => {
+        if (state === "countdown") return;
 
-    // --------- Draw functions ----------
-    function drawBackground() {
-      // Background
-      ctx.fillStyle = "#06111b";
-      ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+        let lineX = FINISH_X;
 
-      // Grass
-      ctx.fillStyle = "#0b3b1a";
-      ctx.fillRect(0, TRACK_TOP - 40, VIEW_WIDTH, TRACK_HEIGHT + 80);
+        if (raceT < FINISH_APPEAR_T) {
+          // Not yet visible
+          return;
+        } else if (raceT < FINISH_END_T) {
+          // Slide in from the right
+          const startX = CANVAS_W + 50;
+          const endX = FINISH_X;
+          const ratio =
+            (raceT - FINISH_APPEAR_T) /
+            (FINISH_END_T - FINISH_APPEAR_T);
+          const r = Math.max(0, Math.min(1, ratio));
+          lineX = startX + (endX - startX) * r;
+        }
 
-      // Track
-      ctx.fillStyle = "#5f4b32";
-      ctx.fillRect(START_X - 40, TRACK_TOP, VIEW_WIDTH - 120, TRACK_HEIGHT);
+        ctx.fillStyle = FINISH_COLOR;
+        ctx.fillRect(
+          lineX - FINISH_WIDTH_PX / 2,
+          nearTop,
+          FINISH_WIDTH_PX,
+          NEAR_TARGET_H,
+        );
+      };
 
-      // Lane dividers
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
-      ctx.lineWidth = 2;
-      for (let i = 0; i <= numHorses; i++) {
-        const y = TRACK_TOP + LANE_HEIGHT * i;
-        ctx.beginPath();
-        ctx.moveTo(START_X - 40, y);
-        ctx.lineTo(VIEW_WIDTH - 40, y);
-        ctx.stroke();
-      }
+      const drawHorses = () => {
+        horses.forEach((h, i) => {
+          const scale = 0.9;
+          const drawW = h.frameW * scale;
+          const drawH = h.frameH * scale;
 
-      // Start line
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 3;
-      ctx.setLineDash([10, 6]);
-      ctx.beginPath();
-      ctx.moveTo(START_X, TRACK_TOP);
-      ctx.lineTo(START_X, TRACK_BOTTOM);
-      ctx.stroke();
+          const bobAmp = 6;
+          const bob = Math.sin(raceT * 6 + i) * bobAmp;
 
-      // Finish line
-      ctx.setLineDash([]);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(FINISH_X, TRACK_TOP, 10, TRACK_HEIGHT);
+          const drawX = h.x - drawW * 0.5; // anchor.x = 0.5
+          const drawY =
+            h.y - drawH * HORSE_ANCHOR_Y + bob + HORSE_GROUND_OFFSET; // anchor.y
 
-      // Finish flag
-      ctx.fillStyle = "#ffcc00";
-      ctx.fillRect(FINISH_X + 10, TRACK_TOP - 20, 6, 20);
-      ctx.fillStyle = "#ff0000";
-      ctx.fillRect(FINISH_X + 16, TRACK_TOP - 25, 20, 15);
+          const sx = h.frameIndex * h.frameW;
+          const sy = 0;
 
-      // Title
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "24px system-ui, sans-serif";
-      ctx.fillText("Horse Race", 24, 34);
-    }
+          ctx.drawImage(
+            h.sheet,
+            sx,
+            sy,
+            h.frameW,
+            h.frameH,
+            drawX,
+            drawY,
+            drawW,
+            drawH,
+          );
+        });
+      };
 
-    function drawHorse(h: HorseState, isWinner: boolean) {
-      const { x, y, lane } = h;
+      const drawCountdownText = () => {
+        const remaining = COUNTDOWN_SECONDS - countdownT;
+        let text = "";
+        if (remaining > 0.5) {
+          text = Math.ceil(remaining).toString();
+        } else if (remaining > -0.2) {
+          text = "GO!";
+        } else {
+          return;
+        }
 
-      const bodyWidth = HORSE_WIDTH;
-      const bodyHeight = HORSE_HEIGHT;
-      const radius = 10;
+        ctx.fillStyle = "rgba(0,0,0,0.4)";
+        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-      // Color: highlight winner
-      if (isWinner) {
-        ctx.fillStyle = "#ffd700";
-      } else {
-        // Simple unique hue per horse
-        const hue = 200 + (lane * 35) % 120;
-        ctx.fillStyle = `hsl(${hue}, 70%, 55%)`;
-      }
+        ctx.fillStyle = "white";
+        ctx.font = "bold 72px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, CANVAS_W / 2, CANVAS_H / 2);
+      };
 
-      roundRect(ctx, x, y, bodyWidth, bodyHeight, radius);
-      ctx.fill();
+      const drawWinnerText = () => {
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-      // Head
-      ctx.beginPath();
-      ctx.arc(
-        x + bodyWidth + 8,
-        y + bodyHeight / 2 - 4,
-        8,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
+        ctx.fillStyle = "#ffeb3b";
+        ctx.font = "bold 54px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
 
-      // Eye
-      ctx.fillStyle = "#000";
-      ctx.beginPath();
-      ctx.arc(
-        x + bodyWidth + 10,
-        y + bodyHeight / 2 - 6,
-        2,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
+        const racerNum = winnerIdx + 1; // display as 1-based
+        ctx.fillText(`RACER ${racerNum} WIN!`, CANVAS_W / 2, CANVAS_H / 2);
+      };
 
-      // Legs
-      ctx.strokeStyle = "#000";
-      ctx.lineWidth = 2;
-      const legY = y + bodyHeight;
-      for (let i = 0; i < 4; i++) {
-        const legX = x + 8 + (i * (bodyWidth - 16)) / 3;
-        ctx.beginPath();
-        ctx.moveTo(legX, legY);
-        ctx.lineTo(legX - 2, legY + 10);
-        ctx.stroke();
-      }
+      // ===== 7. Update logic =====
+      const updateHorsesAndBg = (dt: number) => {
+        if (state === "countdown") {
+          horses.forEach((h) => {
+            h.x = START_X;
+            h.frameIndex = 0;
+            h.animTimer = 0;
+          });
+          return;
+        }
 
-      // Number
-      ctx.fillStyle = "#000";
-      ctx.font = "14px system-ui, sans-serif";
-      ctx.fillText(String(lane + 1), x + 18, y + 20);
-    }
+        if (state !== "running") return;
 
-    function drawCountdown(progress: number) {
-      // 0~1 → 3,2,1
-      const total = 3;
-      const t = Math.min(Math.max(progress, 0), 1) * total;
-      const step = total - Math.floor(t); // 3 → 2 → 1
+        raceT += dt;
+        const remainingRace = Math.max(RACE_DURATION - raceT, 0);
 
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,0.5)";
-      ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+        // Background scrolling
+        bgOffset += BG_SCROLL_SPEED * dt;
+        if (bgOffset > bgTileW) bgOffset -= bgTileW;
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "80px system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(String(step), VIEW_WIDTH / 2, VIEW_HEIGHT / 2);
-      ctx.restore();
-    }
+        horses.forEach((h, i) => {
+          // Running animation frames
+          const animFps = 12;
+          h.animTimer += dt;
+          const step = 1 / animFps;
+          while (h.animTimer >= step) {
+            h.frameIndex = (h.frameIndex + 1) % FRAME_COUNT;
+            h.animTimer -= step;
+          }
 
-    function drawFinishBanner() {
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,0.5)";
-      ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+          if (remainingRace > FINAL_PHASE) {
+            // Random acceleration/deceleration phase
+            const acc = (Math.random() * 2 - 1) * RANDOM_ACCEL;
+            h.v += acc * dt;
+            if (h.v < MIN_SPEED) h.v = MIN_SPEED;
+            if (h.v > MAX_SPEED) h.v = MAX_SPEED;
 
-      ctx.fillStyle = "#ffd700";
-      ctx.font = "52px system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(
-        `Horse #${winnerIndex + 1} Wins!`,
-        VIEW_WIDTH / 2,
-        VIEW_HEIGHT / 2 - 10
-      );
+            h.x += h.v * dt;
 
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "20px system-ui, sans-serif";
-      ctx.fillText(
-        "Race finished",
-        VIEW_WIDTH / 2,
-        VIEW_HEIGHT / 2 + 32
-      );
-      ctx.restore();
-    }
+            // Prevent reaching too early
+            if (h.x > h.targetX - 10) {
+              h.x = h.targetX - 10;
+              h.v *= 0.5;
+            }
+          } else {
+            // Final phase: interpolate to targetX
+            if (remainingRace > 0) {
+              const dist = h.targetX - h.x;
+              const vNeeded = dist / remainingRace;
+              h.v = vNeeded;
+              h.x += h.v * dt;
+            } else {
+              h.x = h.targetX;
+              h.v = 0;
+            }
+          }
+        });
 
-    // --------- Main animation loop ----------
-    function frame(now: number) {
-      if (!running) return;
+        // Check if winner crosses the finish line
+        const winner = horses[winnerIdx];
+        if (!winnerCrossed && winner.x >= FINISH_X) {
+          winnerCrossed = true;
+          state = "winner";
+          winnerTextT = 0;
+        }
+      };
 
-      if (!countdownStartTime) {
-        countdownStartTime = now;
-      }
+      // ===== 8. Main loop =====
+      const loop = (now: number) => {
+        if (!running) return;
+        const dt = Math.min((now - lastTime) / 1000, 0.05);
+        lastTime = now;
 
-      const countdownElapsed = now - countdownStartTime;
+        if (state === "countdown") {
+          countdownT += dt;
+          if (countdownT >= COUNTDOWN_SECONDS) {
+            state = "running";
+            raceT = 0;
+          }
+        } else if (state === "winner") {
+          winnerTextT += dt;
+          if (winnerTextT >= 2.0) {
+            state = "finished";
+          }
+        }
 
-      // Countdown stage
-      if (countdownElapsed < COUNTDOWN_TIME) {
+        updateHorsesAndBg(dt);
+
+        // Render order
         drawBackground();
-        drawAllHorsesStatic();
-        const progress = countdownElapsed / COUNTDOWN_TIME;
-        drawCountdown(progress);
-        animationFrameId = requestAnimationFrame(frame);
-        return;
-      }
+        drawFinishLine();
+        drawHorses();
 
-      // Official race start
-      if (!raceStartTime) {
-        raceStartTime = now;
-      }
-      const t = (now - raceStartTime) / 1000; // seconds
-
-      updateHorses(t);
-      drawBackground();
-      drawAllHorses();
-
-      if (!finished) {
-        // Check if winner reaches finish
-        const winner = horses[winnerIndex];
-        if (winner.x >= FINISH_LINE_X) {
-          finished = true;
-          lastWinnerFinishTime = now;
-        }
-      } else {
-        drawFinishBanner();
-        // Callback after full animation ends
-        if (!allStopped && now - lastWinnerFinishTime > AFTER_FINISH_PAUSE) {
-          allStopped = true;
-          if (onFinished) onFinished();
-        }
-      }
-
-      animationFrameId = requestAnimationFrame(frame);
-    }
-
-    function updateHorses(t: number) {
-      // t = race progress in seconds (excluding countdown)
-      const normalized = Math.min(t / (RACE_DURATION / 1000), 1);
-
-      for (let i = 0; i < horses.length; i++) {
-        const h = horses[i];
-        if (h.finished) continue;
-
-        // Base speed + random variance
-        const randomFactor = 0.6 + Math.random() * 0.4;
-        let speed = h.baseSpeed * randomFactor;
-
-        // Winner bonus acceleration
-        if (i === winnerIndex) {
-          // Guarantee winning gradually
-          const boostScale = 0.4 + normalized * 0.8;
-          speed += h.extraBoost * boostScale;
+        if (state === "countdown") {
+          drawCountdownText();
+        } else if (state === "winner" || state === "finished") {
+          drawWinnerText();
         }
 
-        // Update progress (0~1)
-        h.progress += speed * (1 / 60); // approx 60fps frame time
-        if (h.progress > 1) h.progress = 1;
+        animationFrameId = requestAnimationFrame(loop);
+      };
 
-        // Map progress → x position
-        const targetX =
-          START_X + h.progress * (FINISH_LINE_X - START_X);
-        h.x = targetX;
+      lastTime = performance.now();
+      animationFrameId = requestAnimationFrame(loop);
+    })();
 
-        if (h.x >= FINISH_LINE_X) {
-          h.x = FINISH_LINE_X;
-          h.finished = true;
-        }
-      }
-
-      // If all horses are done, mark finished
-      if (!finished && horses.every((h) => h.finished)) {
-        finished = true;
-      }
-    }
-
-    function drawAllHorses() {
-      for (let i = 0; i < horses.length; i++) {
-        drawHorse(horses[i], i === winnerIndex);
-      }
-    }
-
-    function drawAllHorsesStatic() {
-      for (let i = 0; i < horses.length; i++) {
-        const h = horses[i];
-        h.x = START_X;
-        drawHorse(h, i === winnerIndex);
-      }
-    }
-
-    // Helper: rounded rectangle
-    function roundRect(
-      ctx: CanvasRenderingContext2D,
-      x: number,
-      y: number,
-      w: number,
-      h: number,
-      r: number
-    ) {
-      const radius = Math.min(r, w / 2, h / 2);
-      ctx.beginPath();
-      ctx.moveTo(x + radius, y);
-      ctx.lineTo(x + w - radius, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
-      ctx.lineTo(x + w, y + h - radius);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
-      ctx.lineTo(x + radius, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
-      ctx.lineTo(x, y + radius);
-      ctx.quadraticCurveTo(x, y, x + radius, y);
-      ctx.closePath();
-    }
-
-    // Start animation
-    const startTime = performance.now();
-    animationFrameId = requestAnimationFrame((ts) =>
-      frame(ts ?? startTime)
-    );
-
-    // Cleanup
     return () => {
       running = false;
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
-  }, [winnerIndex, numHorses, onFinished]);
+  }, [winnerIndex, numHorses]); // Depend on props so animation resets when they change
 
+  // IMPORTANT CHANGE: no full-screen <main>; this fits inside your 4:3 card
   return (
-    <div
-      className="flex min-h-screen items-center justify-center bg-black"
-      style={{ touchAction: "none" }}
-    >
+    <div className="w-full h-full flex items-center justify-center bg-black">
       <canvas
         ref={canvasRef}
         style={{
-          borderRadius: "16px",
-          border: "2px solid #ffffff",
-          background: "#000000",
+          border: "2px solid white",
+          borderRadius: "12px",
+          background: "#000",
           maxWidth: "100%",
+          maxHeight: "100%",
         }}
       />
     </div>

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 
-import { Clock, TrendingUp } from "lucide-react";
+//import { Clock, TrendingUp } from "lucide-react";
 import { Coins, Clock, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
