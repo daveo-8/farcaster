@@ -90,13 +90,13 @@ are the original files provided by farcaster, look in their for ideas on how to 
 ---------------------------------------------------------------------
 
 ## Testing ##
-Vitest and c8 for testing frontend JS and TS. Pytest and pytest-cov for testing backend python.
+Vitest with v8 engine for testing frontend JS and TS. Pytest and pytest-cov for testing backend python.
 
 ### Test Command ###
 JS/TS Frontend Testing: `make frontend-test`
+- Alternatively, `npm run test` or `npm run coverage`, but you need to set `tsconfig.json` `"jsx"` variable to be `"react-jsx"`
+- The variable will reset upon `npm run dev` as it mandates it to be `"preserve"`
 Python Backend Testing: `make backend-test`
-
-If there is an error for frontend, try manually installing vitest and c8 again with `npm install --save-dev vitest c8`
 
 ### Test File Locations ###
 Javascript, typescript, and python test files are located in `tests/`. This is where to write new tests.
