@@ -9,11 +9,7 @@ A decentralized horse racing betting application with verifiable random race res
 
 ```bash
 # Install dependencies (first time only)
-cd horsey-foundry && npm install 
-
-Run "curl -L https://foundry.paradigm.xyz | bash" to install foundryup
-IN A NEW TERMINAL run "Run"
-
+cd horsey-foundry && npm install && forge install && cd ..
 cd horsey-ponder && npm install && cd ..
 cd horsey-app && npm install && cd ..
 

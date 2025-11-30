@@ -1,0 +1,12 @@
+{
+  "name": "horsey-entropy-provider",
+  "version": "1.0.0",
+  "description": "Local Pyth Entropy provider simulation for Horsey",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "viem": "^2.0.0"
+  }
+}

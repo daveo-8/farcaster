@@ -4,6 +4,10 @@ type TimerItem = {
   name: string;
   time: string;       // ISO string of lockTime
   stats?: Record<string, any>;
+  placeholder?: boolean;
+
+  // Block helpers
+  endBlock?: number;
 };
 
 // Mount inside the "Upcoming Races" section
@@ -17,18 +21,6 @@ const MIN_CARD_HEIGHT_PX = 64;
 
 // container handles vertical spacing; keep 0 here
 const BAR_GAP_PX = 0;
-
-function formatCountdown(ms: number): string {
-  if (ms < 0) ms = 0;
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const h = hours.toString().padStart(2, "0");
-  const m = minutes.toString().padStart(2, "0");
-  const s = seconds.toString().padStart(2, "0");
-  return `${h}:${m}:${s}`;
-}
 
 function ensureContainer(): HTMLDivElement {
   const container = document.getElementById(CONTAINER_ID) as HTMLDivElement | null;
@@ -58,16 +50,23 @@ function createWhiteBar(item: TimerItem): HTMLDivElement {
   bar.style.fontFamily =
     "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
   bar.style.fontSize = "14px";
-  bar.style.cursor = "pointer";
+  bar.style.cursor = item.placeholder ? "default" : "pointer";
   bar.style.gap = `${BAR_GAP_PX}px`;
+  if (item.placeholder) bar.style.opacity = "0.7";
 
   bar.setAttribute("data-id", item.id);
   bar.setAttribute("data-name", item.name);
   bar.setAttribute("data-time", item.time);
   bar.setAttribute("data-key", `${item.id}`);
+  if (item.placeholder) bar.setAttribute("data-placeholder", "1");
+  if (item.endBlock !== undefined) {
+    bar.setAttribute("data-end-block", String(item.endBlock));
+  }
 
-  bar.addEventListener("mouseenter", () => (bar.style.background = "#0a0a0a"));
-  bar.addEventListener("mouseleave", () => (bar.style.background = "#000"));
+  if (!item.placeholder) {
+    bar.addEventListener("mouseenter", () => (bar.style.background = "#0a0a0a"));
+    bar.addEventListener("mouseleave", () => (bar.style.background = "#000"));
+  }
 
   // LEFT: title + optional subline
   const left = document.createElement("div");
@@ -77,84 +76,138 @@ function createWhiteBar(item: TimerItem): HTMLDivElement {
   title.textContent = item.name;
   title.style.fontWeight = "600";
   title.style.margin = "0 0 4px 0";
+  title.setAttribute("data-role", "title");
 
   const sub = document.createElement("p");
   sub.style.margin = "0";
   sub.style.opacity = "0.7";
   sub.style.fontSize = "12px";
+  sub.setAttribute("data-role", "subline");
   const horses = item.stats?.horses;
-  const track = item.stats?.track; // optional future use
-  sub.textContent = horses != null ? `${horses} racers` + (track ? ` • ${track}` : "") : "";
+  const track = item.stats?.track as string | undefined;
+  sub.textContent = item.placeholder
+    ? "Awaiting schedule"
+    : horses != null
+      ? `${horses} racers${track ? ` • ${track}` : ""}`
+      : "";
 
   left.appendChild(title);
   if (sub.textContent) left.appendChild(sub);
 
-  // RIGHT: countdown + view
+  // RIGHT: blocks remaining + view
   const right = document.createElement("div");
   right.style.textAlign = "right";
   right.style.display = "flex";
   right.style.flexDirection = "column";
   right.style.alignItems = "flex-end";
 
-  const timeEl = document.createElement("div");
-  timeEl.style.fontSize = "12px";
-  timeEl.style.fontWeight = "600";
-  timeEl.style.marginBottom = "6px";
-  timeEl.setAttribute("data-role", "countdown");
-  timeEl.textContent = "--:--:--";
+  const blockEl = document.createElement("div");
+  blockEl.style.fontSize = "12px";
+  blockEl.style.fontWeight = "600";
+  blockEl.style.marginBottom = "6px";
+  blockEl.setAttribute("data-role", "blockdown");
+  blockEl.textContent = item.placeholder ? "TBD" : "-- blocks";
 
-  const viewBtn = document.createElement("button");
-  viewBtn.textContent = "View";
-  viewBtn.style.background = "transparent";
-  viewBtn.style.border = "1px solid rgba(255,255,255,0.25)";
-  viewBtn.style.color = "#fff";
-  viewBtn.style.padding = "4px 10px";
-  viewBtn.style.borderRadius = "8px";
-  viewBtn.style.fontSize = "12px";
-  viewBtn.style.cursor = "pointer";
-  viewBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    window.location.href = `/races2/${encodeURIComponent(item.id)}`;
-  });
+  right.appendChild(blockEl);
 
-  right.appendChild(timeEl);
-  right.appendChild(viewBtn);
+  if (!item.placeholder) {
+    const viewBtn = document.createElement("button");
+    viewBtn.textContent = "View";
+    viewBtn.style.background = "transparent";
+    viewBtn.style.border = "1px solid rgba(255,255,255,0.25)";
+    viewBtn.style.color = "#fff";
+    viewBtn.style.padding = "4px 10px";
+    viewBtn.style.borderRadius = "8px";
+    viewBtn.style.fontSize = "12px";
+    viewBtn.style.cursor = "pointer";
+    viewBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      window.location.href = `/races2/${encodeURIComponent(item.id)}`;
+    });
+    right.appendChild(viewBtn);
+  }
 
   bar.appendChild(left);
   bar.appendChild(right);
 
-  bar.addEventListener("click", () => {
-    window.location.href = `/races2/${encodeURIComponent(item.id)}`;
-  });
+  if (!item.placeholder) {
+    bar.addEventListener("click", () => {
+      window.location.href = `/races2/${encodeURIComponent(item.id)}`;
+    });
+  }
 
   return bar;
 }
 
-/**
- * Normalize API output to TimerItem[].
- * Prefers the full shape from /api/info?full=1 (with raceId/lockTime/racers),
- * and falls back to basic /api/info (name/time only).
- */
+// inplace update to stop flickering
+function updateBarFromItem(bar: HTMLDivElement, item: TimerItem) {
+  bar.setAttribute("data-id", item.id);
+  bar.setAttribute("data-name", item.name);
+  bar.setAttribute("data-time", item.time);
+  bar.setAttribute("data-key", `${item.id}`);
+
+  if (item.placeholder) {
+    bar.setAttribute("data-placeholder", "1");
+    bar.style.cursor = "default";
+    bar.style.opacity = "0.7";
+  } else {
+    bar.removeAttribute("data-placeholder");
+    bar.style.cursor = "pointer";
+    bar.style.opacity = "1";
+  }
+
+  if (item.endBlock !== undefined) {
+    bar.setAttribute("data-end-block", String(item.endBlock));
+  } else {
+    bar.removeAttribute("data-end-block");
+  }
+
+  const title = bar.querySelector<HTMLElement>('[data-role="title"]');
+  if (title) title.textContent = item.name;
+
+  const sub = bar.querySelector<HTMLElement>('[data-role="subline"]');
+  const horses = item.stats?.horses;
+  const track = item.stats?.track as string | undefined;
+  const subText = item.placeholder
+    ? "Awaiting schedule"
+    : horses != null
+      ? `${horses} racers${track ? ` • ${track}` : ""}`
+      : "";
+  if (sub) {
+    sub.textContent = subText;
+    if (!subText && sub.parentElement) sub.parentElement.removeChild(sub);
+  } else if (subText) {
+    const left = bar.firstElementChild as HTMLElement | null;
+    if (left) {
+      const newSub = document.createElement("p");
+      newSub.style.margin = "0";
+      newSub.style.opacity = "0.7";
+      newSub.style.fontSize = "12px";
+      newSub.setAttribute("data-role", "subline");
+      newSub.textContent = subText;
+      left.appendChild(newSub);
+    }
+  }
+
+}
+
+
 async function loadFromServer(): Promise<TimerItem[]> {
-  // Try the richer endpoint first
   let res = await fetch("/api/info?full=1", { cache: "no-store" });
   if (!res.ok) {
-    // Fallback to legacy/basic
     res = await fetch("/api/info", { cache: "no-store" });
   }
   if (!res.ok) throw new Error("Failed to load info");
   const raw = await res.json();
 
   return (raw as any[]).map((r, idx) => {
-    // Prefer on-chain raceId if present
     const raceId =
       r.raceId !== undefined && r.raceId !== null
         ? String(r.raceId)
         : r.id !== undefined && r.id !== null
         ? String(r.id)
-        : String(idx); // last resort, keep list stable
+        : String(idx);
 
-    // Prefer lockTime (seconds) if present; else ISO already provided; else now
     const timeIso =
       typeof r.lockTime !== "undefined"
         ? new Date(Number(r.lockTime) * 1000).toISOString()
@@ -164,129 +217,197 @@ async function loadFromServer(): Promise<TimerItem[]> {
 
     const racers = Array.isArray(r.racers) ? r.racers : undefined;
 
-    return {
+    const endBlock =
+      typeof r.endBlock === "number"
+        ? r.endBlock
+        : typeof r.end_block === "number"
+        ? r.end_block
+        : r.endBlock != null
+        ? Number(r.endBlock)
+        : undefined;
+
+    const item: TimerItem = {
       id: raceId,
       name: r.name ?? `Race ${raceId}`,
       time: timeIso,
       stats: racers ? { horses: racers.length } : undefined,
-    } as TimerItem;
+      endBlock: Number.isFinite(endBlock) ? endBlock : undefined,
+    };
+
+    return item;
   });
 }
 
-// no-op: on-chain list isn't mutable via DELETE; kept for compatibility
-async function deleteOnServer(_name: string, _time: string) {
-  return;
-}
-
+// upcoming entries
 function sortAndFilter(items: TimerItem[], nowMs = Date.now()) {
   return items
-    .filter((i) => Date.parse(i.time) > nowMs)
+    .filter((i) => Date.parse(i.time) > nowMs || i.placeholder === true)
     .sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
 }
 
-function renderTop(container: HTMLElement, items: TimerItem[], limit = MAX_ON_SCREEN) {
-  container.innerHTML = "";
-  items.slice(0, limit).forEach((it) => container.appendChild(createWhiteBar(it)));
+// Placeholders
+function makePlaceholder(index: number): TimerItem {
+  const farFuture = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString();
+  return { id: `tbd-${index}`, name: "To be determined", time: farFuture, placeholder: true };
+}
+function padWithPlaceholders(items: TimerItem[], needed: number): TimerItem[] {
+  const out = [...items];
+  for (let i = 1; out.length < needed; i++) out.push(makePlaceholder(i));
+  return out;
 }
 
+function patchBars(container: HTMLElement, items: TimerItem[], limit = MAX_ON_SCREEN) {
+  const desired = items.slice(0, limit);
+  const existing = Array.from(container.querySelectorAll<HTMLDivElement>('div[data-key]'));
+  const byKey = new Map(existing.map((el) => [el.getAttribute("data-key")!, el]));
+  const used = new Set<string>();
+
+  desired.forEach((item, idx) => {
+    const key = String(item.id);
+    let bar = byKey.get(key);
+    if (!bar) {
+      bar = createWhiteBar(item);
+    } else {
+      updateBarFromItem(bar, item);
+    }
+    used.add(key);
+    const refNode = container.children[idx] || null;
+    if (bar !== refNode) container.insertBefore(bar, refNode);
+  });
+
+  for (const [key, el] of byKey) {
+    if (!used.has(key)) el.remove();
+  }
+}
+
+// Update "N blocks" on all bars using the latest head block
+async function updateBlocksLeftForAllBars(currentBlock: number, refreshAll: () => Promise<void>) {
+  const container = ensureContainer();
+  const bars = Array.from(container.querySelectorAll<HTMLDivElement>("div[data-key]"));
+  let removedSomething = false;
+
+  for (const bar of bars) {
+    if (bar.hasAttribute("data-placeholder")) continue;
+
+    const endBlockStr = bar.getAttribute("data-end-block");
+    if (!endBlockStr) continue;
+
+    const endBlock = Number(endBlockStr);
+    if (!Number.isFinite(endBlock)) continue;
+
+    const remaining = Math.max(0, endBlock - currentBlock);
+
+    const el = bar.querySelector<HTMLElement>('[data-role="blockdown"]');
+    if (el) el.textContent = `${remaining} blocks`;
+
+    if (remaining <= 0) {
+      removedSomething = true;
+      bar.remove();
+    }
+  }
+
+  // If a race hit 0 and we removed it, re-pull from /api/info to refill slots
+  if (removedSomething) {
+    await refreshAll();
+  }
+}
+
+// Listen to live head updates via SSE, with fallback to polling
+function startHeadListener(refreshAll: () => Promise<void>) {
+  let es: EventSource | null = null;
+  let pollTimer: number | null = null;
+
+  const startPolling = () => {
+    if (pollTimer != null) return;
+    pollTimer = window.setInterval(async () => {
+      try {
+        const r = await fetch("/api/head", { cache: "no-store" });
+        if (!r.ok) return;
+        const j = await r.json();
+        if (typeof j.currentBlock === "number") {
+          await updateBlocksLeftForAllBars(j.currentBlock, refreshAll);
+        }
+      } catch (e) {
+        console.error("head poll error", e);
+      }
+    }, 2000) as unknown as number;
+  };
+
+  try {
+    es = new EventSource("/api/head/live");
+    es.onmessage = async (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+        if (typeof data.currentBlock === "number") {
+          await updateBlocksLeftForAllBars(data.currentBlock, refreshAll);
+        }
+      } catch {
+        // ignore bad event
+      }
+    };
+    es.onerror = () => {
+      if (es) es.close();
+      startPolling();
+    };
+  } catch {
+    startPolling();
+  }
+
+  return () => {
+    if (es) es.close();
+    if (pollTimer != null) clearInterval(pollTimer);
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Public entry point
+// ---------------------------------------------------------------------------
 export async function startWhiteBars() {
   const container = ensureContainer();
-  let queue: TimerItem[] = [];
 
-  const currentKeys = () =>
-    Array.from(container.querySelectorAll<HTMLDivElement>("div[data-key]")).map(
-      (n) => n.getAttribute("data-key")!,
-    );
+  // dynamic refresh interval state
+  let refreshInterval: number | null = null;
+  let isFastPolling = false; // true => 500ms, false => 10s
 
-  async function refreshAll(reSeed = false) {
+  const setRefreshInterval = (fast: boolean) => {
+    if (fast === isFastPolling && refreshInterval !== null) {
+      return; // no change
+    }
+    if (refreshInterval !== null) {
+      clearInterval(refreshInterval);
+      refreshInterval = null;
+    }
+    isFastPolling = fast;
+    const delay = fast ? 500 : 10000;
+    refreshInterval = window.setInterval(() => {
+      refreshAll().catch(console.error);
+    }, delay) as unknown as number;
+  };
+
+  async function refreshAll() {
     const data = await loadFromServer();
     const fresh = sortAndFilter(data);
+    const padded = padWithPlaceholders(fresh, MAX_ON_SCREEN);
+    patchBars(container, padded);
 
-    if (reSeed) {
-      queue = fresh;
-      renderTop(container, queue);
-      return;
-    }
-
-    const freshTopKeys = fresh.slice(0, MAX_ON_SCREEN).map((i) => `${i.id}`);
-    const domKeys = currentKeys();
-    const same =
-      freshTopKeys.length === domKeys.length &&
-      freshTopKeys.every((k, idx) => k === domKeys[idx]);
-
-    if (!same) {
-      queue = fresh;
-      renderTop(container, queue);
-    } else {
-      queue = fresh;
-    }
-  }
-
-  async function appendNextIfAvailable() {
-    const domCount = container.querySelectorAll("div[data-key]").length;
-    if (domCount >= MAX_ON_SCREEN) return;
-
-    while (
-      queue.length > 0 &&
-      container.querySelectorAll("div[data-key]").length < MAX_ON_SCREEN
-    ) {
-      const onScreen = new Set(currentKeys());
-      const next = queue.find((i) => !onScreen.has(`${i.id}`));
-      if (!next) break;
-
-      const targetMs = Date.parse(next.time);
-      const now = Date.now();
-      if (targetMs <= now) {
-        // expired – just drop locally (no DELETE on-chain)
-        queue = queue.filter((i) => i.id !== next.id);
-        continue;
-      }
-
-      container.appendChild(createWhiteBar(next));
-    }
-  }
-
-  async function tick() {
-    const now = Date.now();
-    const bars = Array.from(container.querySelectorAll<HTMLDivElement>("div[data-key]"));
-    let expiredOccurred = false;
-
-    for (const bar of bars) {
-      const timeStr = bar.getAttribute("data-time")!;
-      const target = Date.parse(timeStr);
-      const remaining = target - now;
-
-      const timerEl = bar.querySelector<HTMLElement>('[data-role="countdown"]');
-      if (timerEl) timerEl.textContent = formatCountdown(remaining);
-
-      if (remaining <= 0) {
-        expiredOccurred = true;
-        bar.remove();
-      }
-    }
-
-    if (expiredOccurred) {
-      await appendNextIfAvailable();
-    }
+	// If everything on screen is TBD refresh rate is maxed out.
+    // Otherwise refresh is 10 seconds
+    const allTbd = fresh.length === 0;
+    setRefreshInterval(allTbd);
   }
 
   try {
-    await refreshAll(true);
+    await refreshAll(); 
   } catch (e) {
     console.error(e);
   }
 
-  const refreshInterval = setInterval(() => {
-    refreshAll(false).catch(console.error);
-  }, 15_000);
-
-  const tickInterval = setInterval(() => {
-    tick().catch(console.error);
-  }, 1_000);
+  // Live head → live "N blocks" updates
+  const stopHead = startHeadListener(refreshAll);
 
   return () => {
-    clearInterval(refreshInterval);
-    clearInterval(tickInterval);
+    if (refreshInterval !== null) clearInterval(refreshInterval);
+    stopHead();
     const bars = Array.from(container.querySelectorAll("div[data-key]"));
     bars.forEach((b) => b.remove());
   };

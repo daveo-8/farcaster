@@ -49,7 +49,7 @@
     "next-env.d.ts",
     "build/types/**/*.ts",
     "node_modules/@types/jest/**/*.d.ts"
-  ],
+, "tests"  ],
   "exclude": [
     "node_modules"
   ]

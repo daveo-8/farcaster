@@ -1,0 +1,32 @@
+FIRST EDIT META MASK,
+1. go to settings
+
+2. networks
+
+3. add custom network
+
+network name:  anything you want
+
+default rpc url:
+-url:  http://127.0.0.1:8545
+-name : anything you want
+
+chainID: 31337
+
+currency:
+ETH
+
+block explorer url:
+LEAVE BLANK
+
+ignore all warnings and hit save
+
+
+
+open terminal and run these 3 commands while inside the folder with the .js file:
+
+npm init -y
+
+npm install ethers dotenv
+
+node send1000Coins.js 0xYourMetaMaskAddressHere  

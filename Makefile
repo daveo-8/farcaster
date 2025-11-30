@@ -4,12 +4,11 @@
 
 # Run frontend tests with coverage
 frontend-test:
-	npx c8 --include src \
-	--exclude "src/app/.well-known/**" \
-	--exclude "src/app/api/**" \
-	--exclude "src/hooks/**" \
-	--exclude "src/lib/**" \
-	--all --check-coverage --lines 80 --functions 80 --branches 80 vitest
+	node set-jsx.js react-jsx
+	npm run test
+	npm run coverage
+	node set-jsx.js preserve
+# not an issue if it fails to revert to preserve as npm run dev mandates it
 
 backend-test:
 	. venv/bin/activate && pytest

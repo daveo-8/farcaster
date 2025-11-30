@@ -1,0 +1,29 @@
+{
+  "name": "zolidity",
+  "version": "1.0.0",
+  "description": "`Zolidity`: Zero-to-One Solidity with Simplicity-first.",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "wagmi:generate": "wagmi generate",
+    "wagmi:watch": "wagmi generate --watch",
+    "deploy:local": "forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --broadcast",
+    "anvil": "anvil",
+    "anvil:interval": "anvil --block-time 2"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@wagmi/cli": "^2.7.0",
+    "typescript": "^5.9.3",
+    "viem": "^2.38.3"
+  },
+  "dependencies": {
+    "@pythnetwork/entropy-sdk-solidity": "^2.1.0"
+  }
+}

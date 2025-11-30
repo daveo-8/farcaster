@@ -1,6 +1,36 @@
-/node_modules
-/build
-/coverage
-/venv
+# Node.js / JavaScript
+node_modules/
+
+# Build output
+.next/
+out/
+dist/
+build/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Python / Testing
+venv/
+__pycache__/
+tests/__pycache__/
+
+# Coverage reports
+coverage/
 .coverage
-/tests/__pycache__
+
+# Environment Variables
+.env
+.env.local
+
+# IDE / System
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Miscellaneous
+tmp/
+temp/
+*.tgz

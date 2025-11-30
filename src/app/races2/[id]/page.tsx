@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -14,9 +14,14 @@ import Link from "next/link";
 
 // ----- Chain read (fallback) -----
 import type { Abi } from "viem";
-import { createPublicClient, custom, http } from "viem";
+import {
+  createPublicClient,
+  custom,
+  http,
+  encodeFunctionData,
+  parseEther,
+} from "viem";
 
-// Minimal ABI for RaceParimutuelETH_VRF.getRace(uint256)
 const RACE_ABI = [
   {
     type: "function",
@@ -24,41 +29,57 @@ const RACE_ABI = [
     stateMutability: "view",
     inputs: [{ name: "raceId", type: "uint256" }],
     outputs: [
-      { type: "string" },      // name
-      { type: "string[]" },    // racers
-      { type: "uint64" },      // startTime
-      { type: "uint64" },      // lockTime
-      { type: "bool" },        // settled
-      { type: "uint8" },       // winnerIndex
-      { type: "uint256" },     // totalPool
-      { type: "uint256[]" },   // poolByRacer
-      { type: "bool" },        // vrfRequested
+      { type: "string" }, // name
+      { type: "string[]" }, // racers
+      { type: "uint64" }, // startTime
+      { type: "uint64" }, // lockTime
+      { type: "bool" }, // settled
+      { type: "uint8" }, // winnerIndex
+      { type: "uint256" }, // totalPool
+      { type: "uint256[]" }, // poolByRacer
+      { type: "bool" }, // vrfRequested
     ],
   },
 ] as const satisfies Abi;
 
-// You can also put these in NEXT_PUBLIC_ env vars if you like.
-// For fallback read, we’ll prefer window.ethereum; else use RPC_URL if present.
-const RPC_URL = "http://block.techiegogo.com:8545"; // or http://127.0.0.1:8545
-const RACE_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+// ---- Horsey (betting) ABI & addresses ----
+
+const HORSEY_ABI = [
+  {
+    type: "function",
+    name: "bet",
+    stateMutability: "payable",
+    inputs: [{ name: "_horse", type: "uint8" }],
+    outputs: [{ type: "uint256" }],
+  },
+] as const satisfies Abi;
+
+// Addresses you provided:
+const HORSEY_ADDRESS = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512";
+const MOCK_ENTROPY_ADDRESS = "0x5fbdb2315678afecb367f032d93f642f64180aa3";
+
+const RPC_URL = "http://127.0.0.1:8545"; 
+const RACE_ADDRESS = HORSEY_ADDRESS;
+
+const COIN_TO_ETH = 1.00;
 
 // ---------------- UI Types ----------------
 type UiHorse = {
-  id: number;         // index in racers[]
+  id: number; 
   name: string;
-  jockey: string;     // not on-chain; “—”
-  odds: number;       // implied multiple: totalPool/poolByRacer[i] (if poolByRacer>0)
-  color: string;      // a tailwind class picked by index
+  jockey: string; 
+  odds: number; 
+  color: string; 
 };
 
 type UiRace = {
   id: number;
   name: string;
-  location: string;   // not on-chain
+  location: string;
   raceDate: Date;
-  distance: string;   // not on-chain
-  track: string;      // not on-chain
-  prize: string;      // display-only; we’ll show “Pool: X ETH” here if you want
+  distance: string;
+  track: string;
+  prize: string;
   horses: UiHorse[];
 };
 
@@ -74,11 +95,19 @@ const formatStartsIn = (target: Date) => {
   return `${m}m`;
 };
 
-// deterministic palette for horse colors
 const COLOR_CLASSES = [
-  "bg-blue-600", "bg-rose-600", "bg-emerald-600", "bg-amber-600",
-  "bg-fuchsia-600", "bg-cyan-600", "bg-indigo-600", "bg-lime-600",
-  "bg-teal-600", "bg-orange-600", "bg-pink-600", "bg-purple-600",
+  "bg-blue-600",
+  "bg-rose-600",
+  "bg-emerald-600",
+  "bg-amber-600",
+  "bg-fuchsia-600",
+  "bg-cyan-600",
+  "bg-indigo-600",
+  "bg-lime-600",
+  "bg-teal-600",
+  "bg-orange-600",
+  "bg-pink-600",
+  "bg-purple-600",
 ];
 
 function pickColor(idx: number) {
@@ -86,8 +115,7 @@ function pickColor(idx: number) {
 }
 
 function weiToEthStr(bi: bigint) {
-  // lightweight converter, display 4 decimals
-  const s = bi.toString().padStart(19, "0"); // ensure at least 19 digits
+  const s = bi.toString().padStart(19, "0");
   const whole = s.slice(0, -18) || "0";
   const frac = s.slice(-18).slice(0, 4).padEnd(4, "0");
   return `${whole}.${frac}`;
@@ -103,33 +131,35 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
   const [err, setErr] = useState<string | null>(null);
   const [selectedHorses, setSelectedHorses] = useState<number[]>([]);
   const [betAmounts, setBetAmounts] = useState<Record<number, string>>({});
+  const [placingOnChain, setPlacingOnChain] = useState(false);
 
-  // ---- Try API first, then fall back to direct chain read via viem ----
   useEffect(() => {
     let alive = true;
 
     async function fromApi(): Promise<UiRace | null> {
-      // Prefer rich shape: /api/info?full=1
       let res = await fetch("/api/info?full=1", { cache: "no-store" });
       if (!res.ok) {
-        // fallback to basic
         res = await fetch("/api/info", { cache: "no-store" });
         if (!res.ok) return null;
       }
       const data = (await res.json()) as any[];
-      // find by raceId (preferred) or id (string)
       const found =
         data.find((r) => String(r.raceId) === params.id) ??
         data.find((r) => String(r.id) === params.id);
       if (!found) return null;
 
       const lockTimeSec: number | null =
-        typeof found.lockTime !== "undefined" ? Number(found.lockTime) :
-        found.time ? Math.floor(Date.parse(String(found.time)) / 1000) : null;
+        typeof found.lockTime !== "undefined"
+          ? Number(found.lockTime)
+          : found.time
+          ? Math.floor(Date.parse(String(found.time)) / 1000)
+          : null;
 
       const name: string = found.name ?? `Race ${params.id}`;
       const racers: string[] = Array.isArray(found.racers) ? found.racers : [];
-      const totalPoolWei: bigint = found.totalPoolWei ? BigInt(found.totalPoolWei) : BigInt(found.totalPool ?? 0);
+      const totalPoolWei: bigint = found.totalPoolWei
+        ? BigInt(found.totalPoolWei)
+        : BigInt(found.totalPool ?? 0);
       const poolByRacerWei: bigint[] = Array.isArray(found.poolByRacerWei)
         ? found.poolByRacerWei.map((x: any) => BigInt(x))
         : Array.isArray(found.poolByRacer)
@@ -139,17 +169,21 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
       const ui: UiRace = {
         id: Number(params.id),
         name,
-        location: "—",               // not on-chain
-        raceDate: new Date((lockTimeSec ?? Math.floor(Date.now() / 1000)) * 1000),
-        distance: "—",               // not on-chain
-        track: "—",                  // not on-chain
-        prize: totalPoolWei ? `Pool: ${weiToEthStr(totalPoolWei)} ETH` : "—",
+        location: "—",
+        raceDate: new Date(
+          (lockTimeSec ?? Math.floor(Date.now() / 1000)) * 1000,
+        ),
+        distance: "—",
+        track: "—",
+        prize: totalPoolWei
+          ? `Pool: ${weiToEthStr(totalPoolWei)} ETH`
+          : "—",
         horses: racers.map((nm, i) => {
           const pool = poolByRacerWei[i] ?? 0n;
           const odds =
             pool > 0n && totalPoolWei > 0n
-              ? Number((totalPoolWei * 1_000_000n) / pool) / 1_000_000 // multiple with 6dp
-              : 1; // undefined pool => show 1x
+              ? Number((totalPoolWei * 1_000_000n) / pool) / 1_000_000
+              : 1;
           return {
             id: i,
             name: nm,
@@ -164,13 +198,12 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
 
     async function fromChain(): Promise<UiRace | null> {
       if (!RACE_ADDRESS) return null;
-
-      // prefer window.ethereum (user’s wallet). If not available, use RPC_URL if provided.
-      const transport = typeof window !== "undefined" && (window as any).ethereum
-        ? custom((window as any).ethereum)
-        : RPC_URL
-        ? http(RPC_URL)
-        : null;
+      const transport =
+        typeof window !== "undefined" && (window as any).ethereum
+          ? custom((window as any).ethereum)
+          : RPC_URL
+          ? http(RPC_URL)
+          : null;
 
       if (!transport) return null;
 
@@ -179,7 +212,7 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
 
       try {
         const res = await client.readContract({
-          address: RACE_ADDRESS,
+          address: RACE_ADDRESS as `0x${string}`,
           abi: RACE_ABI,
           functionName: "getRace",
           args: [raceId],
@@ -240,14 +273,12 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
         setLoading(true);
         setErr(null);
 
-        // 1) Try your server route first (recommended)
         const viaApi = await fromApi();
         if (alive && viaApi) {
           setRace(viaApi);
           return;
         }
 
-        // 2) Fallback: direct chain read
         const viaChain = await fromChain();
         if (alive && viaChain) {
           setRace(viaChain);
@@ -272,7 +303,7 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
     setSelectedHorses((prev) =>
       prev.includes(horseId)
         ? prev.filter((id) => id !== horseId)
-        : [...prev, horseId]
+        : [...prev, horseId],
     );
   };
 
@@ -280,16 +311,75 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
     setBetAmounts((prev) => ({ ...prev, [horseId]: value }));
   };
 
-  const handlePlaceBet = () => {
+  // ---- On-chain bet helper ----
+  async function placeOnChainBets(
+    finalBets: {
+      raceId: number;
+      horseId: number;
+      amount: number;
+    }[],
+  ) {
+    if (finalBets.length === 0) return;
+
+    if (typeof window === "undefined" || !(window as any).ethereum) {
+      toast("Wallet not found", {
+        description: "Please install MetaMask or another EVM wallet.",
+      });
+      return;
+    }
+
+    const ethereum = (window as any).ethereum;
+
+    // Request accounts
+    const accounts: string[] = await ethereum.request({
+      method: "eth_requestAccounts",
+    });
+    const from = accounts[0];
+
+    // For each bet, send one transaction (Horsey only supports one horse per bet)
+    for (const bet of finalBets) {
+      const ethAmount = bet.amount * COIN_TO_ETH;
+      if (!ethAmount || ethAmount <= 0) continue;
+
+      const valueWei = parseEther(ethAmount.toString());
+
+      // Horse enum in Solidity: NONE, ONE, TWO, ..., SEVEN
+      // So we map UI horseId 0..6 → 1..7
+      const horseEnumValue = bet.horseId + 1;
+
+      const data = encodeFunctionData({
+        abi: HORSEY_ABI,
+        functionName: "bet",
+        args: [horseEnumValue],
+      });
+
+      try {
+        await ethereum.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from,
+              to: HORSEY_ADDRESS,
+              value: "0x" + valueWei.toString(16),
+              data,
+            },
+          ],
+        });
+      } catch (error: any) {
+        // If user rejects, just stop further on-chain txs but keep local state intact.
+        console.error("On-chain bet failed", error);
+        throw error;
+      }
+    }
+  }
+
+  const handlePlaceBet = async () => {
     if (!race) return;
     if (!selectedHorses.length)
       return toast("No Horses Selected", {
         description: "Select at least one horse.",
       });
 
-    // NOTE: Current app uses a local “coins” wallet. On-chain ETH bet
-    // would call contract.bet(raceId, racerIndex) with msg.value.
-    // We keep your existing client flow intact here.
     let totalSpent = 0;
     const bets = selectedHorses
       .map((id) => {
@@ -299,7 +389,7 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
         totalSpent += amount;
         return { horse, amount };
       })
-      .filter(Boolean) as { horse: typeof race.horses[0]; amount: number }[];
+      .filter(Boolean) as { horse: UiHorse; amount: number }[];
 
     if (!totalSpent)
       return toast("Invalid Bet", {
@@ -320,20 +410,50 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
       potentialWin: Math.round(amount * horse.odds),
     }));
 
-    const existingBets = JSON.parse(localStorage.getItem("userBets") || "[]");
-    const allBets = [...existingBets, ...finalBets];
-    localStorage.setItem("userBets", JSON.stringify(allBets));
-    finalBets.forEach(addBet);
+    try {
+      setPlacingOnChain(true);
 
-    toast("Bets Placed!", { description: `Placed ${finalBets.length} bet(s)` });
+      await placeOnChainBets(
+        finalBets.map((b) => ({
+          raceId: b.raceId,
+          horseId: b.horseId,
+          amount: b.amount,
+        })),
+      );
 
-    setSelectedHorses([]);
-    setBetAmounts({});
-    router.push(`/horseRoom/${race.id}`);
+      const existingBets = JSON.parse(
+        localStorage.getItem("userBets") || "[]",
+      );
+      const allBets = [...existingBets, ...finalBets];
+      localStorage.setItem("userBets", JSON.stringify(allBets));
+      finalBets.forEach(addBet);
+
+      toast("Bets Placed!", {
+        description: `Placed ${finalBets.length} bet(s) on-chain`,
+      });
+
+      setSelectedHorses([]);
+      setBetAmounts({});
+      router.push(`/horseRoom/${race.id}`);
+    } catch (error: any) {
+      console.error(error);
+      toast("On-chain bet failed", {
+        description:
+          error?.message ?? "Transaction was rejected or failed on-chain.",
+      });
+    } finally {
+      setPlacingOnChain(false);
+    }
   };
 
-  if (loading) return <div className="p-6 text-center">Loading race info…</div>;
-  if (err || !race) return <div className="p-6 text-center text-red-500">{err}</div>;
+  if (loading)
+    return <div className="p-6 text-center">Loading race info…</div>;
+  if (err || !race)
+    return (
+      <div className="p-6 text-center text-red-500">
+        {err ?? "Race not found"}
+      </div>
+    );
 
   const startsIn = formatStartsIn(race.raceDate);
 
@@ -402,7 +522,9 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-bold text-primary">
-                      {Number.isFinite(horse.odds) ? `${horse.odds.toFixed(2)}x` : "—"}
+                      {Number.isFinite(horse.odds)
+                        ? `${horse.odds.toFixed(2)}x`
+                        : "—"}
                     </div>
                     <div className="text-xs text-muted-foreground"></div>
                   </div>
@@ -420,7 +542,10 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
               const horse = race.horses.find((h) => h.id === horseId)!;
               const amount = betAmounts[horseId] || "";
               const potentialWin = amount
-                ? (Number(amount) * (Number.isFinite(horse.odds) ? horse.odds : 1)).toFixed(0)
+                ? (
+                    Number(amount) *
+                    (Number.isFinite(horse.odds) ? horse.odds : 1)
+                  ).toFixed(0)
                 : "0";
 
               return (
@@ -480,7 +605,9 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
 
             <div className="pt-2 mt-4 pb-6 space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Available balance:</span>
+                <span className="text-muted-foreground">
+                  Available balance:
+                </span>
                 <span className="font-semibold flex items-center gap-1">
                   <Coins className="h-4 w-4 text-primary" />
                   {balance.toLocaleString()}
@@ -488,8 +615,13 @@ export default function RaceDetailPage({ params }: { params: { id: string } }) {
               </div>
             </div>
 
-            <Button className="w-full" size="lg" onClick={handlePlaceBet}>
-              Place Bet
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={handlePlaceBet}
+              disabled={placingOnChain}
+            >
+              {placingOnChain ? "Placing on-chain…" : "Place Bet"}
             </Button>
           </Card>
         )}
