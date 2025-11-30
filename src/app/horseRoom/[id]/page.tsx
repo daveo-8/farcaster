@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from "react";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { ChevronLeft, Circle, ChevronDown, ChevronUp } from "lucide-react";
+import HorseRaceAnimation from "~/components/HorseRaceAnimation";
 
 // ---- Types ----
 type Horse = {
@@ -37,7 +38,10 @@ type ChatMessage = {
 
 export default function HorseRoomPage() {
   const router = useRouter();
-  const { id: raceId } = useParams();
+  const { id: raceIdParam } = useParams();
+
+  const raceIdStr = String(raceIdParam ?? "");
+  const raceIdNum = Number(raceIdStr);
 
   const [race, setRace] = useState<Race | null>(null);
   const [userBets, setUserBets] = useState<UserBet[]>([]);
@@ -49,6 +53,15 @@ export default function HorseRoomPage() {
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // 动画控制
+  const [raceStarted, setRaceStarted] = useState(false);
+  const [winnerIndex, setWinnerIndex] = useState<number | null>(null);
+
+  // 链上的 winnerIndex
+  const [chainWinnerIndex, setChainWinnerIndex] = useState<number | null>(null);
+  const [winnerLoading, setWinnerLoading] = useState(false);
+  const [winnerError, setWinnerError] = useState<string | null>(null);
 
   // ---- Load user bets from localStorage ----
   useEffect(() => {
@@ -64,27 +77,32 @@ export default function HorseRoomPage() {
 
   // ---- Scroll chat to bottom on new messages ----
   useEffect(() => {
-    if (chatOpen) chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (chatOpen) {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages, chatOpen]);
 
-  // ---- Load race info ----
+  // ---- Load race info from info.txt ----
   useEffect(() => {
     const loadRace = async () => {
+      if (!raceIdStr) return;
       try {
         const res = await fetch("/info.txt", { cache: "no-store" });
         if (!res.ok) throw new Error(`Failed to fetch info.txt (${res.status})`);
-  
+
         const data = await res.json();
-        const found = data.find((r: any) => r.id === raceId);
-        if (!found) throw new Error(`Race ${raceId} not found`);
-  
-        const raceIdNum = Number(raceId);
-  
-        // Convert odds to numbers (they're strings in your file)
-        const horsesWithBets = found.horses.map((h: any) => {
+        const found = data.find((r: any) => String(r.id) === raceIdStr);
+        if (!found) throw new Error(`Race ${raceIdStr} not found`);
+
+        const horsesWithBets: Horse[] = found.horses.map((h: any) => {
           const total = userBets
-            .filter((b) => b.horseId === Number(h.id) && b.raceId === raceIdNum)
+            .filter(
+              (b) =>
+                b.horseId === Number(h.id) &&
+                b.raceId === raceIdNum
+            )
             .reduce((sum, b) => sum + b.amount, 0);
+
           return {
             id: Number(h.id),
             name: h.name,
@@ -93,7 +111,7 @@ export default function HorseRoomPage() {
             totalBets: total,
           };
         });
-  
+
         setRace({
           id: Number(found.id),
           name: found.name,
@@ -103,11 +121,68 @@ export default function HorseRoomPage() {
         console.error(err);
       }
     };
-  
-    loadRace();
-  }, [raceId, userBets]);
 
-  const sortedHorses = race ? [...race.horses].sort((a, b) => a.odds - b.odds) : [];
+    loadRace();
+  }, [raceIdStr, raceIdNum, userBets]);
+
+  // ---- 从 /api/races/:id 拿链上的 winnerIndex（0-based）----
+  useEffect(() => {
+    const fetchWinner = async () => {
+      if (!raceIdStr) return;
+      setWinnerLoading(true);
+      setWinnerError(null);
+
+      try {
+        const res = await fetch(`/api/races/${raceIdStr}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const data = await res.json(); // { settled, winnerIndex, ... }
+
+        if (data.settled && typeof data.winnerIndex === "number") {
+          setChainWinnerIndex(data.winnerIndex); // 0-based
+        } else {
+          setChainWinnerIndex(null);
+        }
+      } catch (e: any) {
+        console.error("Failed to load winner:", e);
+        setWinnerError(e?.message ?? "Failed to load winner");
+        setChainWinnerIndex(null);
+      } finally {
+        setWinnerLoading(false);
+      }
+    };
+
+    fetchWinner();
+  }, [raceIdStr]);
+
+  const sortedHorses = race
+    ? [...race.horses].sort((a, b) => a.odds - b.odds)
+    : [];
+
+  // ---- 开始比赛：使用链上 winnerIndex，而不是随机 ----
+  const handleStartRace = () => {
+    if (!race || race.horses.length === 0) return;
+
+    if (chainWinnerIndex === null) {
+      alert("This race has not been settled on-chain yet.");
+      return;
+    }
+
+    // 安全范围判断
+    if (
+      chainWinnerIndex < 0 ||
+      chainWinnerIndex >= race.horses.length
+    ) {
+      alert("Invalid winner index from chain.");
+      return;
+    }
+
+    setWinnerIndex(chainWinnerIndex); // 固定赢家
+    setRaceStarted(true);
+  };
 
   // ---- Chat Handlers ----
   const handleSendMessage = () => {
@@ -115,7 +190,10 @@ export default function HorseRoomPage() {
     const newMessage: ChatMessage = {
       id: messages.length + 1,
       text: chatInput,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
     };
     setMessages((prev) => [...prev, newMessage]);
     setChatInput("");
@@ -136,7 +214,10 @@ export default function HorseRoomPage() {
       const newMessage: ChatMessage = {
         id: messages.length + 1,
         image: reader.result as string,
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        timestamp: new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
       };
       setMessages((prev) => [...prev, newMessage]);
     };
@@ -153,7 +234,10 @@ export default function HorseRoomPage() {
           const newMessage: ChatMessage = {
             id: messages.length + 1,
             image: reader.result as string,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            timestamp: new Date().toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
           };
           setMessages((prev) => [...prev, newMessage]);
         };
@@ -175,35 +259,88 @@ export default function HorseRoomPage() {
     setExpanded(false);
   };
 
-  if (!race) return <div className="p-6 text-center">Loading race...</div>;
+  if (!race) {
+    return (
+      <div className="p-6 text-center text-foreground">
+        Loading race...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {/* Header */}
       <header className="border-b border-border bg-card sticky top-0 z-40">
-        <div className="w-full max-w-lg mx-auto px-4 py-3 flex items-center gap-2">
+        <div className="w-full max-w-lg md:max-w-4xl mx-auto px-4 py-3 flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
-          <h1 className="text-lg font-bold">{race.name}</h1>
+          <h1 className="text-lg font-bold truncate">{race.name}</h1>
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-lg mx-auto flex flex-col p-3 gap-2">
-        {/* Animation Placeholder */}
-        <div className="w-full bg-gradient-to-br from-primary/10 to-secondary/20 rounded-lg shadow-md aspect-video flex items-center justify-center">
-          <h2 className="text-lg font-bold text-muted-foreground">Animation Placeholder</h2>
-        </div>
+      {/* Main */}
+      <main className="flex-1 w-full max-w-lg md:max-w-4xl mx-auto flex flex-col p-3 gap-4">
+        {/* 动画区域：手机 220px 高，桌面 360px 高 */}
+        <Card className="w-full rounded-lg shadow-md overflow-hidden bg-gradient-to-br from-primary/10 to-secondary/20">
+          <div className="relative w-full mx-auto flex items-center justify-center h-[220px] md:h-[360px]">
+            {raceStarted && winnerIndex !== null ? (
+              <HorseRaceAnimation
+                winnerIndex={winnerIndex} // 0-based
+                numHorses={race.horses.length}
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                <h2 className="text-lg font-bold mt-2 md:mt-4">Race Ready</h2>
+
+                {winnerLoading && (
+                  <p className="text-sm">Loading on-chain result...</p>
+                )}
+                {winnerError && (
+                  <p className="text-xs text-red-400">{winnerError}</p>
+                )}
+                {!winnerLoading &&
+                  !winnerError &&
+                  chainWinnerIndex === null && (
+                    <p className="text-sm">
+                      Race has not been settled on-chain yet.
+                    </p>
+                  )}
+
+                <Button
+                  size="sm"
+                  onClick={handleStartRace}
+                  disabled={
+                    winnerLoading || chainWinnerIndex === null
+                  }
+                >
+                  Start Race
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
 
         {/* Current Live Odds */}
         <Card className="w-full p-2 shadow-sm">
           <div className="flex justify-between items-center mb-2">
-            <h2 className="text-md font-bold flex-1">Current Live Odds</h2>
-            <Button variant="ghost" size="sm" onClick={toggleCLO} className="flex items-center gap-1 text-sm">
+            <h2 className="text-md font-bold flex-1">
+              Current Live Odds
+            </h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleCLO}
+              className="flex items-center gap-1 text-sm"
+            >
               {expanded ? (
-                <span className="flex items-center gap-1">Show Less <ChevronUp className="h-3 w-3" /></span>
+                <span className="flex items-center gap-1">
+                  Show Less <ChevronUp className="h-3 w-3" />
+                </span>
               ) : (
-                <span className="flex items-center gap-1">Show All <ChevronDown className="h-3 w-3" /></span>
+                <span className="flex items-center gap-1">
+                  Show All <ChevronDown className="h-3 w-3" />
+                </span>
               )}
             </Button>
           </div>
@@ -212,8 +349,19 @@ export default function HorseRoomPage() {
           {!expanded && (
             <div className="flex justify-evenly py-1">
               {sortedHorses.slice(0, 3).map((horse, index) => {
-                const userBet = userBets.find((b) => b.horseId === horse.id && b.raceId === Number(race.id));
-                return <HorseRowCollapsed key={horse.id} horse={horse} index={index} userBet={userBet} />;
+                const userBet = userBets.find(
+                  (b) =>
+                    b.horseId === horse.id &&
+                    b.raceId === Number(race.id)
+                );
+                return (
+                  <HorseRowCollapsed
+                    key={horse.id}
+                    horse={horse}
+                    index={index}
+                    userBet={userBet}
+                  />
+                );
               })}
             </div>
           )}
@@ -222,8 +370,19 @@ export default function HorseRoomPage() {
           {expanded && (
             <div className="flex flex-col gap-1 max-h-56 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white scrollbar-track-gray-800">
               {sortedHorses.map((horse, index) => {
-                const userBet = userBets.find((b) => b.horseId === horse.id && b.raceId === Number(race.id));
-                return <HorseRowExpanded key={horse.id} horse={horse} index={index} userBet={userBet} />;
+                const userBet = userBets.find(
+                  (b) =>
+                    b.horseId === horse.id &&
+                    b.raceId === Number(race.id)
+                );
+                return (
+                  <HorseRowExpanded
+                    key={horse.id}
+                    horse={horse}
+                    index={index}
+                    userBet={userBet}
+                  />
+                );
               })}
             </div>
           )}
@@ -231,7 +390,10 @@ export default function HorseRoomPage() {
 
         {/* Show Chat button when CLO expanded */}
         {expanded && !chatOpen && (
-          <Button className="w-full py-2 rounded-lg shadow-md text-sm" onClick={openChat}>
+          <Button
+            className="w-full py-2 rounded-lg shadow-md text-sm"
+            onClick={openChat}
+          >
             Open Chat
           </Button>
         )}
@@ -239,18 +401,25 @@ export default function HorseRoomPage() {
         {/* Chat Section */}
         {chatOpen && (
           <Card className="w-full h-64 p-2 flex flex-col bg-black text-white shadow-md">
-            <div className="text-sm font-bold mb-1 border-b border-gray-700 pb-1">Chat</div>
+            <div className="text-sm font-bold mb-1 border-b border-gray-700 pb-1">
+              Chat
+            </div>
             <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin scrollbar-thumb-white scrollbar-track-gray-800">
               {messages.map((msg) => (
-                <div key={msg.id} className="border-b border-gray-700 pb-1 text-xs">
-                  <span className="text-gray-400 mr-1">{msg.timestamp}</span>
+                <div
+                  key={msg.id}
+                  className="border-b border-gray-700 pb-1 text-xs"
+                >
+                  <span className="text-gray-400 mr-1">
+                    {msg.timestamp}
+                  </span>
                   {msg.text && <span>{msg.text}</span>}
                   {msg.image && (
                     <img
                       src={msg.image}
                       alt="uploaded"
                       className="mt-1 max-h-24 rounded-md cursor-pointer"
-                      onClick={() => setModalImage(msg.image)}
+                      onClick={() => setModalImage(msg.image!)}
                     />
                   )}
                 </div>
@@ -271,9 +440,16 @@ export default function HorseRoomPage() {
               />
               <label className="cursor-pointer p-1 bg-gray-800 rounded-md text-sm">
                 📎
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
               </label>
-              <Button size="sm" onClick={handleSendMessage}>Send</Button>
+              <Button size="sm" onClick={handleSendMessage}>
+                Send
+              </Button>
             </div>
           </Card>
         )}
@@ -284,14 +460,21 @@ export default function HorseRoomPage() {
             className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
             onClick={() => setModalImage(null)}
           >
-            <div className="relative flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="relative flex flex-col items-center"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 className="mb-2 text-white bg-gray-800 rounded-full px-2 py-1 text-lg font-bold"
                 onClick={() => setModalImage(null)}
               >
                 ✕
               </button>
-              <img src={modalImage} alt="modal" className="max-h-[80vh] max-w-[90vw] rounded-md" />
+              <img
+                src={modalImage}
+                alt="modal"
+                className="max-h-[80vh] max-w-[90vw] rounded-md"
+              />
             </div>
           </div>
         )}
@@ -301,17 +484,31 @@ export default function HorseRoomPage() {
 }
 
 // ---- Collapsed Horse Row ----
-function HorseRowCollapsed({ horse, index, userBet }: { horse: Horse; index: number; userBet?: UserBet }) {
+function HorseRowCollapsed({
+  horse,
+  index,
+  userBet,
+}: {
+  horse: Horse;
+  index: number;
+  userBet?: UserBet;
+}) {
   return (
     <div className="flex flex-col items-center text-center p-1 rounded-lg min-w-[80px]">
       <div className="flex items-center gap-1 mb-1">
-        {userBet && <Circle className="h-3 w-3 text-green-500 fill-green-500" />}
-        <div className={`w-6 h-6 rounded-md ${horse.color} flex items-center justify-center text-white text-sm font-bold`}>
+        {userBet && (
+          <Circle className="h-3 w-3 text-green-500 fill-green-500" />
+        )}
+        <div
+          className={`w-6 h-6 rounded-md ${horse.color} flex items-center justify-center text-white text-sm font-bold`}
+        >
           {index + 1}
         </div>
         <div className="flex flex-col text-left ml-1">
           <span className="text-xs font-semibold">{horse.name}</span>
-          <span className="text-[10px] text-muted-foreground">Total: {(horse.totalBets ?? 0).toLocaleString()}</span>
+          <span className="text-[10px] text-muted-foreground">
+            Total: {(horse.totalBets ?? 0).toLocaleString()}
+          </span>
         </div>
       </div>
     </div>
@@ -319,12 +516,24 @@ function HorseRowCollapsed({ horse, index, userBet }: { horse: Horse; index: num
 }
 
 // ---- Expanded Horse Row ----
-function HorseRowExpanded({ horse, index, userBet }: { horse: Horse; index: number; userBet?: UserBet }) {
+function HorseRowExpanded({
+  horse,
+  index,
+  userBet,
+}: {
+  horse: Horse;
+  index: number;
+  userBet?: UserBet;
+}) {
   return (
     <div className="p-1 rounded-lg flex flex-col transition-all">
       <div className="flex items-center gap-2 mb-1">
-        {userBet && <Circle className="h-3 w-3 text-green-500 fill-green-500" />}
-        <div className={`w-6 h-6 rounded-md ${horse.color} flex items-center justify-center text-white text-sm font-bold`}>
+        {userBet && (
+          <Circle className="h-3 w-3 text-green-500 fill-green-500" />
+        )}
+        <div
+          className={`w-6 h-6 rounded-md ${horse.color} flex items-center justify-center text-white text-sm font-bold`}
+        >
           {index + 1}
         </div>
         <div className="font-semibold text-sm">{horse.name}</div>
@@ -334,7 +543,9 @@ function HorseRowExpanded({ horse, index, userBet }: { horse: Horse; index: numb
         {userBet && (
           <>
             <div>Your Bet: {userBet.amount} coins</div>
-            <div className="text-green-500">Potential Win: {userBet.potentialWin} coins</div>
+            <div className="text-green-500">
+              Potential Win: {userBet.potentialWin} coins
+            </div>
           </>
         )}
       </div>
