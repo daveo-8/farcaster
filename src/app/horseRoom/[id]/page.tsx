@@ -7,7 +7,6 @@ import { Card } from "~/components/ui/card";
 import { ChevronLeft, Circle, ChevronDown, ChevronUp } from "lucide-react";
 import HorseRaceAnimation from "~/components/HorseRaceAnimation";
 
-
 // ---- Types ----
 type Horse = {
   id: number;
@@ -37,33 +36,6 @@ type ChatMessage = {
   timestamp: string;
 };
 
-const COLOR_CLASSES = [
-  "bg-blue-600",
-  "bg-rose-600",
-  "bg-emerald-600",
-  "bg-amber-600",
-  "bg-fuchsia-600",
-  "bg-cyan-600",
-  "bg-indigo-600",
-  "bg-lime-600",
-  "bg-teal-600",
-  "bg-orange-600",
-  "bg-pink-600",
-  "bg-purple-600",
-];
-
-function formatTimeDiff(target: Date | null): string {
-  if (!target) return "";
-  const diffMs = target.getTime() - Date.now();
-  if (diffMs <= 0) return "0s";
-  const totalSeconds = Math.floor(diffMs / 1000);
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  if (m && s) return `${m}m ${s}s`;
-  if (m) return `${m}m`;
-  return `${s}s`;
-}
-
 export default function HorseRoomPage() {
   const router = useRouter();
   const { id: raceIdParam } = useParams();
@@ -82,7 +54,14 @@ export default function HorseRoomPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // 动画控制
+  const [raceStarted, setRaceStarted] = useState(false);
+  const [winnerIndex, setWinnerIndex] = useState<number | null>(null);
 
+  // 链上的 winnerIndex
+  const [chainWinnerIndex, setChainWinnerIndex] = useState<number | null>(null);
+  const [winnerLoading, setWinnerLoading] = useState(false);
+  const [winnerError, setWinnerError] = useState<string | null>(null);
 
   // ---- Load user bets from localStorage ----
   useEffect(() => {
@@ -96,25 +75,47 @@ export default function HorseRoomPage() {
     }
   }, []);
 
+  // ---- Scroll chat to bottom on new messages ----
+  useEffect(() => {
+    if (chatOpen) {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, chatOpen]);
 
+  // ---- Load race info from info.txt ----
   useEffect(() => {
     const loadRace = async () => {
       if (!raceIdStr) return;
       try {
+        const res = await fetch("/info.txt", { cache: "no-store" });
+        if (!res.ok) throw new Error(`Failed to fetch info.txt (${res.status})`);
+
+        const data = await res.json();
+        const found = data.find((r: any) => String(r.id) === raceIdStr);
+        if (!found) throw new Error(`Race ${raceIdStr} not found`);
+
+        const horsesWithBets: Horse[] = found.horses.map((h: any) => {
+          const total = userBets
+            .filter(
+              (b) =>
+                b.horseId === Number(h.id) &&
+                b.raceId === raceIdNum
+            )
+            .reduce((sum, b) => sum + b.amount, 0);
 
           return {
-            id: index,
-            name,
-            color: COLOR_CLASSES[index % COLOR_CLASSES.length],
-            odds,
-            totalBets,
+            id: Number(h.id),
+            name: h.name,
+            color: h.color,
+            odds: Number(h.odds),
+            totalBets: total,
           };
         });
 
         setRace({
-          id: raceIdNum,
-          name: found.name ?? `Race ${raceId}`,
-          horses,
+          id: Number(found.id),
+          name: found.name,
+          horses: horsesWithBets,
         });
       } catch (err) {
         console.error(err);
@@ -131,43 +132,59 @@ export default function HorseRoomPage() {
       setWinnerLoading(true);
       setWinnerError(null);
 
+      try {
+        const res = await fetch(`/api/races/${raceIdStr}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const data = await res.json(); // { settled, winnerIndex, ... }
+
+        if (data.settled && typeof data.winnerIndex === "number") {
+          setChainWinnerIndex(data.winnerIndex); // 0-based
+        } else {
+          setChainWinnerIndex(null);
+        }
+      } catch (e: any) {
+        console.error("Failed to load winner:", e);
+        setWinnerError(e?.message ?? "Failed to load winner");
+        setChainWinnerIndex(null);
+      } finally {
+        setWinnerLoading(false);
+      }
+    };
+
+    fetchWinner();
+  }, [raceIdStr]);
 
   const sortedHorses = race
     ? [...race.horses].sort((a, b) => a.odds - b.odds)
     : [];
 
+  // ---- 开始比赛：使用链上 winnerIndex，而不是随机 ----
+  const handleStartRace = () => {
+    if (!race || race.horses.length === 0) return;
 
+    if (chainWinnerIndex === null) {
+      alert("This race has not been settled on-chain yet.");
+      return;
+    }
 
-        if (match && match.winner != null) {
-          // winner is an enum 1..7 in Horsey → convert to 0-based index
-          const winnerEnum = Number(match.winner);
-          if (Number.isFinite(winnerEnum) && winnerEnum > 0) {
-            setWinnerIndex(winnerEnum - 1);
-            setAnimationReady(true);
-            return;
-          }
-        }
-      } catch (err) {
-        console.error("Error polling winner from Ponder", err);
-      }
+    // 安全范围判断
+    if (
+      chainWinnerIndex < 0 ||
+      chainWinnerIndex >= race.horses.length
+    ) {
+      alert("Invalid winner index from chain.");
+      return;
+    }
 
-      // No winner yet → poll again in 3 seconds
-      if (!cancelled) {
-        timeoutId = window.setTimeout(pollWinner, 3000);
-      }
-    };
+    setWinnerIndex(chainWinnerIndex); // 固定赢家
+    setRaceStarted(true);
+  };
 
-    pollWinner();
-
-    return () => {
-      cancelled = true;
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [hasBettingClosed, race]);
-
-  // ---- Chat Handlers (unchanged) ----
+  // ---- Chat Handlers ----
   const handleSendMessage = () => {
     if (!chatInput.trim()) return;
     const newMessage: ChatMessage = {
@@ -230,23 +247,7 @@ export default function HorseRoomPage() {
     }
   };
 
-  // ---- Auto-scroll chat (unchanged) ----
-  useEffect(() => {
-    const chatContainer = chatEndRef.current?.parentElement;
-    if (!chatContainer) return;
-
-    const isNearBottom =
-      chatContainer.scrollHeight -
-        chatContainer.scrollTop -
-        chatContainer.clientHeight <
-      50;
-
-    if (isNearBottom) {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages]);
-
-  // ---- CLO & Chat toggles (unchanged) ----
+  // ---- CLO & Chat toggles ----
   const toggleCLO = () => {
     setExpanded(!expanded);
     if (!expanded) setChatOpen(false);
@@ -266,23 +267,6 @@ export default function HorseRoomPage() {
     );
   }
 
-  const winnerHorseId =
-    winnerIndex != null && race.horses[winnerIndex]
-      ? race.horses[winnerIndex].id
-      : null;
-
-  const animationStatusLabel = (() => {
-    if (!hasBettingClosed) {
-      return bettingCloseTime
-        ? `Betting closes in ${formatTimeDiff(bettingCloseTime)}`
-        : "Waiting for betting window to close…";
-    }
-    if (hasBettingClosed && winnerIndex == null) {
-      return "Betting Window Open, Waiting For Closure";
-    }
-    return "Race in progress…";
-  })();
-
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       {/* Header */}
@@ -295,12 +279,54 @@ export default function HorseRoomPage() {
         </div>
       </header>
 
+      {/* Main */}
+      <main className="flex-1 w-full max-w-lg md:max-w-4xl mx-auto flex flex-col p-3 gap-4">
+        {/* 动画区域：手机 220px 高，桌面 360px 高 */}
+        <Card className="w-full rounded-lg shadow-md overflow-hidden bg-gradient-to-br from-primary/10 to-secondary/20">
+          <div className="relative w-full mx-auto flex items-center justify-center h-[220px] md:h-[360px]">
+            {raceStarted && winnerIndex !== null ? (
+              <HorseRaceAnimation
+                winnerIndex={winnerIndex} // 0-based
+                numHorses={race.horses.length}
+              />
+            ) : (
+              <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                <h2 className="text-lg font-bold mt-2 md:mt-4">Race Ready</h2>
 
+                {winnerLoading && (
+                  <p className="text-sm">Loading on-chain result...</p>
+                )}
+                {winnerError && (
+                  <p className="text-xs text-red-400">{winnerError}</p>
+                )}
+                {!winnerLoading &&
+                  !winnerError &&
+                  chainWinnerIndex === null && (
+                    <p className="text-sm">
+                      Race has not been settled on-chain yet.
+                    </p>
+                  )}
 
-        {/* Current Live Odds (unchanged) */}
+                <Button
+                  size="sm"
+                  onClick={handleStartRace}
+                  disabled={
+                    winnerLoading || chainWinnerIndex === null
+                  }
+                >
+                  Start Race
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Current Live Odds */}
         <Card className="w-full p-2 shadow-sm">
           <div className="flex justify-between items-center mb-2">
-
+            <h2 className="text-md font-bold flex-1">
+              Current Live Odds
+            </h2>
             <Button
               variant="ghost"
               size="sm"
@@ -324,7 +350,9 @@ export default function HorseRoomPage() {
             <div className="flex justify-evenly py-1">
               {sortedHorses.slice(0, 3).map((horse, index) => {
                 const userBet = userBets.find(
-
+                  (b) =>
+                    b.horseId === horse.id &&
+                    b.raceId === Number(race.id)
                 );
                 return (
                   <HorseRowCollapsed
@@ -343,7 +371,9 @@ export default function HorseRoomPage() {
             <div className="flex flex-col gap-1 max-h-56 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white scrollbar-track-gray-800">
               {sortedHorses.map((horse, index) => {
                 const userBet = userBets.find(
-
+                  (b) =>
+                    b.horseId === horse.id &&
+                    b.raceId === Number(race.id)
                 );
                 return (
                   <HorseRowExpanded
@@ -380,7 +410,9 @@ export default function HorseRoomPage() {
                   key={msg.id}
                   className="border-b border-gray-700 pb-1 text-xs"
                 >
-
+                  <span className="text-gray-400 mr-1">
+                    {msg.timestamp}
+                  </span>
                   {msg.text && <span>{msg.text}</span>}
                   {msg.image && (
                     <img
@@ -406,7 +438,15 @@ export default function HorseRoomPage() {
                 onPaste={handlePaste}
                 className="flex-1 p-1 rounded-md border border-gray-600 bg-gray-900 text-white text-sm"
               />
-
+              <label className="cursor-pointer p-1 bg-gray-800 rounded-md text-sm">
+                📎
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
               <Button size="sm" onClick={handleSendMessage}>
                 Send
               </Button>
@@ -443,7 +483,7 @@ export default function HorseRoomPage() {
   );
 }
 
-
+// ---- Collapsed Horse Row ----
 function HorseRowCollapsed({
   horse,
   index,
@@ -475,7 +515,7 @@ function HorseRowCollapsed({
   );
 }
 
-
+// ---- Expanded Horse Row ----
 function HorseRowExpanded({
   horse,
   index,
