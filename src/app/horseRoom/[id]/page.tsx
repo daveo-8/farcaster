@@ -380,7 +380,7 @@ export default function HorseRoomPage() {
       {/* Header */}
       <header className="border-b border-border bg-card sticky top-0 z-40">
         <div className="w-full max-w-lg mx-auto px-4 py-3 flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <Button variant="ghost" size="icon" onClick={() => router.push("/")}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg font-bold">{race.name}</h1>
