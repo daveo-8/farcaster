@@ -54,11 +54,11 @@ export default function HorseRoomPage() {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // 动画控制
+
   const [raceStarted, setRaceStarted] = useState(false);
   const [winnerIndex, setWinnerIndex] = useState<number | null>(null);
 
-  // 链上的 winnerIndex
+ 
   const [chainWinnerIndex, setChainWinnerIndex] = useState<number | null>(null);
   const [winnerLoading, setWinnerLoading] = useState(false);
   const [winnerError, setWinnerError] = useState<string | null>(null);
@@ -162,7 +162,7 @@ export default function HorseRoomPage() {
     ? [...race.horses].sort((a, b) => a.odds - b.odds)
     : [];
 
-  // ---- 开始比赛：使用链上 winnerIndex，而不是随机 ----
+
   const handleStartRace = () => {
     if (!race || race.horses.length === 0) return;
 

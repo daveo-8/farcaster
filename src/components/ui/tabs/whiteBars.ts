@@ -14,10 +14,10 @@ type TimerItem = {
 const CONTAINER_ID = "white-bars-root";
 
 // max number on screen
-const MAX_ON_SCREEN = 5;
+const MAX_ON_SCREEN = 2;
 
 // minimum card height
-const MIN_CARD_HEIGHT_PX = 64;
+const MIN_CARD_HEIGHT_PX = 220;
 
 // container handles vertical spacing; keep 0 here
 const BAR_GAP_PX = 0;
@@ -36,78 +36,113 @@ function ensureContainer(): HTMLDivElement {
 
 function createWhiteBar(item: TimerItem): HTMLDivElement {
   const bar = document.createElement("div");
-
-  // card container
-  bar.style.minHeight = `${MIN_CARD_HEIGHT_PX}px`;
-  bar.style.background = "#000";
-  bar.style.color = "#fff";
-  bar.style.display = "flex";
-  bar.style.alignItems = "center";
-  bar.style.justifyContent = "space-between";
-  bar.style.border = "1px solid rgba(255,255,255,0.9)";
+  bar.style.position = "relative";
   bar.style.borderRadius = "12px";
-  bar.style.padding = "16px";
+  bar.style.overflow = "hidden";
+  bar.style.cursor = item.placeholder ? "default" : "pointer";
+  bar.style.minHeight = `${MIN_CARD_HEIGHT_PX}px`;
   bar.style.fontFamily =
     "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial";
-  bar.style.fontSize = "14px";
-  bar.style.cursor = item.placeholder ? "default" : "pointer";
-  bar.style.gap = `${BAR_GAP_PX}px`;
-  if (item.placeholder) bar.style.opacity = "0.7";
+  bar.style.display = "flex";
+  bar.style.flexDirection = "column";
+  bar.style.border = "1px solid rgba(255,255,255,0.9)";
+  bar.style.backgroundColor = "#000"; // fallback
+  bar.style.marginBottom = `${BAR_GAP_PX}px`;
 
-  bar.setAttribute("data-id", item.id);
-  bar.setAttribute("data-name", item.name);
-  bar.setAttribute("data-time", item.time);
-  bar.setAttribute("data-key", `${item.id}`);
-  if (item.placeholder) bar.setAttribute("data-placeholder", "1");
-  if (item.endBlock !== undefined) {
-    bar.setAttribute("data-end-block", String(item.endBlock));
-  }
+  // --- IMAGE ---
+  const img = document.createElement("img");
+  img.src = "/horse-racing-motion.webp";
+  img.alt = item.name;
+  img.style.width = "100%";
+  img.style.height = "128px";
+  img.style.objectFit = "cover";
+  img.style.opacity = "0.5";
+  bar.appendChild(img);
 
-  if (!item.placeholder) {
-    bar.addEventListener("mouseenter", () => (bar.style.background = "#0a0a0a"));
-    bar.addEventListener("mouseleave", () => (bar.style.background = "#000"));
-  }
+  // --- "Starting Soon" badge ---
+if (!item.placeholder) {
+  const badge = document.createElement("div");
+  badge.textContent = "Starting Soon";
+  badge.style.position = "absolute";
+  badge.style.top = "8px";            // distance from top of the image
+  badge.style.right = "8px";          // distance from right edge
+  badge.style.backgroundColor = "#ff3b30"; // bright red
+  badge.style.color = "#fff";
+  badge.style.fontSize = "10px";
+  badge.style.fontWeight = "600";
+  badge.style.padding = "2px 6px";
+  badge.style.borderRadius = "6px";
+  badge.style.zIndex = "3";           // above overlay
+  badge.style.pointerEvents = "none"; // let clicks pass through
+  bar.appendChild(badge);
+}
 
-  // LEFT: title + optional subline
+  // --- BLACK OVERLAY (instant, no gradient) ---
+  const overlay = document.createElement("div");
+  overlay.style.position = "absolute";
+  overlay.style.left = "0";
+  overlay.style.right = "0";
+  overlay.style.bottom = "0";
+  overlay.style.top = "90%"; //
+  overlay.style.backgroundColor = "rgba(0,0,0,0.85)";
+  overlay.style.zIndex = "1";        // make sure it sits above the image
+  overlay.style.pointerEvents = "none"; // allow clicks to pass through
+
+  // append overlay before content so content renders on top
+  bar.appendChild(overlay);
+
+  // --- CONTENT ---
+  const content = document.createElement("div");
+  content.style.position = "absolute";
+  content.style.bottom = "0";
+  content.style.left = "0";
+  content.style.right = "0";
+  content.style.padding = "16px";
+  content.style.display = "flex";
+  content.style.justifyContent = "space-between";
+  content.style.alignItems = "center";
+  content.style.color = "#fff";
+  content.style.zIndex = "2"; 
+  
+  bar.appendChild(content);
+  // LEFT: title + horses
   const left = document.createElement("div");
   left.style.flex = "1 1 auto";
 
   const title = document.createElement("h3");
   title.textContent = item.name;
-  title.style.fontWeight = "600";
   title.style.margin = "0 0 4px 0";
+  title.style.fontWeight = "600";
+  title.style.fontSize = "16px";
   title.setAttribute("data-role", "title");
 
   const sub = document.createElement("p");
   sub.style.margin = "0";
-  sub.style.opacity = "0.7";
   sub.style.fontSize = "12px";
-  sub.setAttribute("data-role", "subline");
+  sub.style.opacity = "0.7";
   const horses = item.stats?.horses;
-  const track = item.stats?.track as string | undefined;
   sub.textContent = item.placeholder
     ? "Awaiting schedule"
     : horses != null
-      ? `${horses} racers${track ? ` • ${track}` : ""}`
+      ? `${horses} racers`
       : "";
+  sub.setAttribute("data-role", "subline");
 
   left.appendChild(title);
   if (sub.textContent) left.appendChild(sub);
 
   // RIGHT: blocks remaining + view
   const right = document.createElement("div");
-  right.style.textAlign = "right";
   right.style.display = "flex";
   right.style.flexDirection = "column";
   right.style.alignItems = "flex-end";
 
   const blockEl = document.createElement("div");
+  blockEl.textContent = item.placeholder ? "TBD" : "-- blocks";
   blockEl.style.fontSize = "12px";
   blockEl.style.fontWeight = "600";
   blockEl.style.marginBottom = "6px";
   blockEl.setAttribute("data-role", "blockdown");
-  blockEl.textContent = item.placeholder ? "TBD" : "-- blocks";
-
   right.appendChild(blockEl);
 
   if (!item.placeholder) {
@@ -127,14 +162,27 @@ function createWhiteBar(item: TimerItem): HTMLDivElement {
     right.appendChild(viewBtn);
   }
 
-  bar.appendChild(left);
-  bar.appendChild(right);
+  content.appendChild(left);
+  content.appendChild(right);
+  bar.appendChild(content);
 
+  // --- hover effect ---
   if (!item.placeholder) {
+    bar.addEventListener("mouseleave", () => {
+      img.style.transform = "scale(1)";
+    });
+
     bar.addEventListener("click", () => {
       window.location.href = `/races2/${encodeURIComponent(item.id)}`;
     });
   }
+
+  bar.setAttribute("data-id", item.id);
+  bar.setAttribute("data-name", item.name);
+  bar.setAttribute("data-time", item.time);
+  bar.setAttribute("data-key", item.id);
+  if (item.placeholder) bar.setAttribute("data-placeholder", "1");
+  if (item.endBlock !== undefined) bar.setAttribute("data-end-block", String(item.endBlock));
 
   return bar;
 }

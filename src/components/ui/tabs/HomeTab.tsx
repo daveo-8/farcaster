@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 
-//import { Clock, TrendingUp } from "lucide-react";
-import { Coins, Clock, TrendingUp } from "lucide-react";
+import { Coins, Clock, TrendingUp, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import { useWallet } from "~/lib/wallet-context";
@@ -15,6 +14,13 @@ type Leader = {
   total_bets: number;
   total_staked: string | number;
   total_won: string | number;
+};
+
+type EventItem = {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
 };
 
 function shortAddress(addr: string) {
@@ -44,6 +50,27 @@ function rankBadge(index: number) {
       return { text: "🎲 Grinder", className: "text-blue-400" };
   }
 }
+
+const EVENTS: EventItem[] = [
+  {
+    id: "black-friday",
+    title: "Black Friday Flash Sale",
+    description: "Bonus coins and boosted rewards to kick off the holiday grind.",
+    date: "2025-11-29",
+  },
+  {
+    id: "christmas",
+    title: "Christmas Race Festival",
+    description: "Limited-time festive races with extra rewards on daily chests.",
+    date: "2025-12-25",
+  },
+  {
+    id: "new-year",
+    title: "New Year Coin Rush",
+    description: "Ring in the new year with boosted multipliers and XP bonuses.",
+    date: "2026-01-01",
+  },
+];
 
 function FirstVisitDisclaimer() {
   const KEY = "disclaimerAccepted";
@@ -104,6 +131,7 @@ function FirstVisitDisclaimer() {
 }
 
 function DailyRewardChest() {
+  const { addCoins } = useWallet();
   const LS_KEY = "dailyRewardLastClaim";
   const DAY_MS = 24 * 60 * 60 * 1000;
   const accent = "#ff3b3b";
@@ -143,6 +171,7 @@ function DailyRewardChest() {
     const t = Date.now();
     localStorage.setItem(LS_KEY, String(t));
     setLastClaim(t);
+    addCoins(500);
     alert("You claimed your daily reward.");
   }
 
@@ -197,6 +226,7 @@ export function HomeTab() {
   const [leaders, setLeaders] = useState<Leader[]>([]);
   const [leadersLoading, setLeadersLoading] = useState(true);
   const [leadersError, setLeadersError] = useState<string | null>(null);
+  const [eventIndex, setEventIndex] = useState(0);
 
   useEffect(() => {
     let stop: (() => void) | undefined;
@@ -233,6 +263,37 @@ export function HomeTab() {
     return () => clearInterval(id);
   }, []);
 
+  const activeEvent = EVENTS[eventIndex];
+
+  function eventCountdownLabel(dateStr: string) {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const eventTime = new Date(dateStr).getTime();
+    const diffDays = Math.ceil((eventTime - Date.now()) / DAY_MS);
+
+    if (diffDays > 1) return `${diffDays} days left`;
+    if (diffDays === 1) return "1 day left";
+    if (diffDays === 0) return "Today";
+    return "Ended";
+  }
+
+  function eventCountdownTone(dateStr: string) {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const eventTime = new Date(dateStr).getTime();
+    const diffDays = Math.ceil((eventTime - Date.now()) / DAY_MS);
+
+    if (diffDays > 1) return "text-emerald-300";
+    if (diffDays === 1 || diffDays === 0) return "text-yellow-300";
+    return "text-muted-foreground";
+  }
+
+  function nextEvent() {
+    setEventIndex((i) => (i + 1) % EVENTS.length);
+  }
+
+  function prevEvent() {
+    setEventIndex((i) => (i - 1 + EVENTS.length) % EVENTS.length);
+  }
+
   return (
     <div className="">
       <FirstVisitDisclaimer />
@@ -245,6 +306,58 @@ export function HomeTab() {
         <div id="white-bars-root" className="space-y-3" />
       </section>
 
+      {activeEvent && (
+        <section className="mt-4 mb-2">
+          <Card className="relative overflow-hidden border border-primary/50 bg-gradient-to-r from-primary/40 via-pink-500/40 to-purple-600/40">
+            <div className="absolute inset-y-0 right-0 w-40 opacity-40 blur-3xl bg-gradient-to-l from-white/70 to-transparent" />
+            <div className="relative flex items-center gap-3 p-4">
+              <button
+                type="button"
+                onClick={prevEvent}
+                aria-label="Previous event"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/40 bg-black/30 text-xs hover:bg-black/60"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              <div className="flex-1 text-left">
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/70">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                  <span>Event Board</span>
+                </div>
+                <h3 className="mt-1 text-lg font-semibold text-white">{activeEvent.title}</h3>
+                <p className="mt-1 text-xs text-white/80">{activeEvent.description}</p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-white/40 bg-black/30 px-2 py-1 text-white">
+                    <CalendarDays className="h-3 w-3" />
+                    {new Date(activeEvent.date).toLocaleDateString()}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full bg-black/50 px-2 py-1 text-[11px] ${eventCountdownTone(
+                      activeEvent.date
+                    )}`}
+                  >
+                    {eventCountdownLabel(activeEvent.date)}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-black/40 px-2 py-1 text-[10px] text-white/80">
+                    {eventIndex + 1}/{EVENTS.length}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={nextEvent}
+                aria-label="Next event"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/40 bg-black/30 text-xs hover:bg-black/60"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </Card>
+        </section>
+      )}
 
       <section>
         <h2 className="text-xl font-bold mt-4 mb-4">Your Stats</h2>
