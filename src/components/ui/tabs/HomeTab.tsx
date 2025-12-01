@@ -362,7 +362,7 @@ export function HomeTab() {
       <section>
         <h2 className="text-xl font-bold mt-4 mb-4">Your Stats</h2>
         <div className="grid grid-cols-3 gap-3">
-          
+
           <Card className="p-4 text-center">
             <div className="text-2xl font-bold text-primary">{totalBets}</div>
             <div className="text-xs text-muted-foreground mt-1">Total Bets</div>

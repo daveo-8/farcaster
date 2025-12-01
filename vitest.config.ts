@@ -21,7 +21,8 @@ export default defineConfig({
         "src/lib/**",
         "Oracle Control/**",
         "OracleControl/**",
-        "node_modules"
+        "node_modules",
+        "src/components/ui/wallet/**"
       ],
       all: true,
       thresholds: {
